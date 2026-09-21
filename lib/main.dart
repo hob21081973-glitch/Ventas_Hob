@@ -680,7 +680,7 @@ class _VistaCrearPedidoState extends State<VistaCrearPedido> {
         },
       ),
     );
-  }
+  } // <--- Asegúrate de que esta llave cierra correctamente el método
   @override
   Widget build(BuildContext context) {
     final mainState = context.findAncestorStateOfType<MenuPrincipalState>();
