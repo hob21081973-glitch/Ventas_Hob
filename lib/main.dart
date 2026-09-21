@@ -349,7 +349,7 @@ class _VistaCrearPedidoState extends State<VistaCrearPedido> {
       0.0, 
       (sum, item) => sum + ((item['precio'] as num).toDouble() * (item['cantidad'] as num).toDouble())
     );
-    String fecha = DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now());
+    String fecha = DateFormat('yyyy-MM-dd').format(DateTime.now());
     
     String productosStr = mainState.productosEnCurso.map((p) {
       String com = (p['comentario'] != null && p['comentario'].toString().trim().isNotEmpty)
@@ -410,7 +410,7 @@ class _VistaCrearPedidoState extends State<VistaCrearPedido> {
                       TextField(
                         autofocus: true,
                         decoration: const InputDecoration(
-                          labelText: 'Nombre o código del cliente...',
+                          labelText: 'Nombre Del Cliente...',
                           suffixIcon: Icon(Icons.search),
                           border: OutlineInputBorder(),
                         ),
@@ -495,7 +495,7 @@ class _VistaCrearPedidoState extends State<VistaCrearPedido> {
                       TextField(
                         autofocus: true,
                         decoration: const InputDecoration(
-                          labelText: 'Nombre o código del producto...',
+                          labelText: 'Nombre Del Producto...',
                           suffixIcon: Icon(Icons.search),
                           border: OutlineInputBorder(),
                         ),
@@ -574,7 +574,7 @@ class _VistaCrearPedidoState extends State<VistaCrearPedido> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Comentario / Detalle'),
+        title: const Text('Detalle'),
         content: TextField(
           controller: comCtrl,
           decoration: const InputDecoration(labelText: 'Ej. Color rojo, Talla L, Fragancia vainilla...'),
