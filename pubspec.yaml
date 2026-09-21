@@ -1,4 +1,4 @@
-name: app_ventas_export_pdf
+name: App_Ventas_Hob
 description: "Aplicación de ventas con sincronización, base de datos local y exportación a PDF."
 publish_to: 'none' 
 version: 1.0.0+1
