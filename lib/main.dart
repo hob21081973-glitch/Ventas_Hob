@@ -378,7 +378,7 @@ class _VistaCrearPedidoState extends State<VistaCrearPedido> {
     }
     widget.onPedidoGuardado();
     changeNotifierPedidos.value++;
-    setState(() {});
+    setState({});
     
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -546,7 +546,7 @@ class _VistaCrearPedidoState extends State<VistaCrearPedido> {
                                               'comentario': '',
                                             });
                                           }
-                                        
+                                        });
                                         widget.onCambioDato();
                                       }
                                       Navigator.pop(context);
@@ -745,9 +745,31 @@ class _VistaCrearPedidoState extends State<VistaCrearPedido> {
             const SizedBox(height: 10),
             Row(
               children: [
-                const Expanded(
-                  child: Text('Agregar Productos al Pedido:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                Expanded(
+                  child: GestureDetector(
+                    onTap: _abrirBuscadorProductos,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey.shade400),
+                        borderRadius: BorderRadius.circular(8),
+                        color: Colors.grey.shade50,
+                      ),
+                      child: const SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Text(
+                          'Agregar Productos al Pedido...',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.normal,
+                            color: Colors.grey,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
+                const SizedBox(width: 8),
                 IconButton(
                   style: IconButton.styleFrom(backgroundColor: Colors.indigo, foregroundColor: Colors.white),
                   icon: const Icon(Icons.search),
