@@ -536,15 +536,17 @@ class _VistaCrearPedidoState extends State<VistaCrearPedido> {
                                           );
                                           if (existenteIndex != -1) {
                                             mainState.productosEnCurso[existenteIndex]['cantidad']++;
+                                            var itemMovido = mainState.productosEnCurso.removeAt(existenteIndex);
+                                            mainState.productosEnCurso.insert(0, itemMovido);
                                           } else {
-                                            mainState.productosEnCurso.add({
+                                            mainState.productosEnCurso.insert(0, {
                                               'nombre': p['nombre'],
                                               'precio': p['precio'],
                                               'cantidad': 1,
                                               'comentario': '',
                                             });
                                           }
-                                        });
+                                        
                                         widget.onCambioDato();
                                       }
                                       Navigator.pop(context);
