@@ -317,6 +317,7 @@ class VistaCrearPedido extends StatefulWidget {
   @override
   State<VistaCrearPedido> createState() => _VistaCrearPedidoState();
 }
+
 class _VistaCrearPedidoState extends State<VistaCrearPedido> {
   Future<int> _obtenerSiguienteNumeroPedido() async {
     final db = await DatabaseHelper.instance.database;
@@ -324,6 +325,7 @@ class _VistaCrearPedidoState extends State<VistaCrearPedido> {
     int count = Sqflite.firstIntValue(resultado) ?? 0;
     return (count % 99) + 1;
   }
+
   void _guardarPedido() async {
     final mainState = context.findAncestorStateOfType<MenuPrincipalState>();
     if (mainState?.clienteEnCurso == null) {
@@ -378,13 +380,14 @@ class _VistaCrearPedidoState extends State<VistaCrearPedido> {
     }
     widget.onPedidoGuardado();
     changeNotifierPedidos.value++;
-    setState((){
+    setState(() {});
     
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('¡$numPedidoStr Guardado con éxito!')),
     );
   }
+
   void _abrirBuscadorClientes() {
     showDialog(
       context: context,
@@ -470,6 +473,7 @@ class _VistaCrearPedidoState extends State<VistaCrearPedido> {
       },
     );
   }
+
   void _abrirBuscadorProductos() {
     showDialog(
       context: context,
@@ -569,6 +573,7 @@ class _VistaCrearPedidoState extends State<VistaCrearPedido> {
       },
     );
   }
+
   void _pedirComentario(int index) {
     final mainState = context.findAncestorStateOfType<MenuPrincipalState>();
     if (mainState == null) return;
@@ -597,6 +602,7 @@ class _VistaCrearPedidoState extends State<VistaCrearPedido> {
       ),
     );
   }
+
   void _mostrarDialogoGestionProducto(int index) {
     final mainState = context.findAncestorStateOfType<MenuPrincipalState>();
     if (mainState == null) return;
@@ -680,7 +686,8 @@ class _VistaCrearPedidoState extends State<VistaCrearPedido> {
         },
       ),
     );
-  } // <--- Asegúrate de que esta llave cierra correctamente el método
+  }
+
   @override
   Widget build(BuildContext context) {
     final mainState = context.findAncestorStateOfType<MenuPrincipalState>();
@@ -849,7 +856,7 @@ class _VistaCrearPedidoState extends State<VistaCrearPedido> {
       ),
     );
   }
-}
+} // <-- Fin de _VistaCrearPedidoState (Esta llave cierra perfectamente la clase y evita que la siguiente clase quede anidada)
 // ==========================================
 // 2. PESTAÑA: HISTORIAL DE PEDIDOS
 // ==========================================
