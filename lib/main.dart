@@ -378,7 +378,7 @@ class _VistaCrearPedidoState extends State<VistaCrearPedido> {
     }
     widget.onPedidoGuardado();
     changeNotifierPedidos.value++;
-    setState({});
+    setState((){
     
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
