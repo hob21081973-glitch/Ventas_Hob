@@ -27,7 +27,7 @@ class AppVentasHob extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'App Ventas ExportPdf',
+      title: 'App Ventas Hob',
       theme: ThemeData(primarySwatch: Colors.indigo),
       home: const MenuPrincipal(),
       debugShowCheckedModeBanner: false,
