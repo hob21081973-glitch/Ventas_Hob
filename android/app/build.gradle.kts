@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.app_ventas_export_pdf"
+    namespace = "com.example.app_Ventas_Hob"
     compileSdk = 34
 
     compileOptions {
@@ -18,7 +18,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.app_ventas_export_pdf"
+        applicationId = "com.example.app_Ventas_Hob"
         minSdk = 21
         targetSdk = 34
         versionCode = 1
