@@ -20,6 +20,12 @@ const String urlClientesCSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1v
 const String urlProductosCSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTmtKhEE5ziDtm_BQdAeOy8c-Z6H6GbyKCPOvtdjfKtXgxYObBUB-P1K0ldsiwR78aabDzei-R2Cd/pub?gid=1903712481&single=true&output=csv';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+// Opcional: Validamos que la base de datos responda desde el arranque
+  try {
+    await DatabaseHelper.instance.database;
+  } catch (e) {
+    print("Error al inicializar la base de datos: $e");
+  }
   runApp(const AppVentasHob());
 }
 class AppVentasHob extends StatelessWidget {
