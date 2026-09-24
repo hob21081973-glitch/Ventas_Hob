@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.app_Ventas_Hob"
+    namespace = "com.example.app_ventas_hob" // <-- Todo en minúsculas
     compileSdk = 34
 
     compileOptions {
@@ -18,7 +18,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.app_Ventas_Hob"
+        applicationId = "com.example.app_ventas_hob" // <-- Todo en minúsculas
         minSdk = 21
         targetSdk = 34
         versionCode = 1
