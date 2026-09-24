@@ -1,4 +1,4 @@
-package com.example.resumen_pedido
+package com.example.app_ventas_hob
 
 import io.flutter.embedding.android.FlutterActivity
 
