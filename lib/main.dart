@@ -10,17 +10,16 @@ import 'dart:convert';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
-import 'vista_resumen_por_producto.dart';
 
 // Notificador global para actualizar datos en tiempo real entre pestañas
 final ValueNotifier<int> changeNotifierPedidos = ValueNotifier<int>(0); 
 
-// URLs de Google Sheets (Reemplaza con tus enlaces CSV publicados)
+// URLs de Google Sheets
 const String urlClientesCSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTmtKhEE5ziDtm_BQdAeOy8c-Z6H6_GbyKcPOvtdjfKtXgxYObBUB-PlK0ldsiwrW78aabDzei-R2Cd/pub?gid=0&single=true&output=csv';
 const String urlProductosCSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTmtKhEE5ziDtm_BQdAeOy8c-Z6H6GbyKCPOvtdjfKtXgxYObBUB-P1K0ldsiwR78aabDzei-R2Cd/pub?gid=1903712481&single=true&output=csv';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-// Opcional: Validamos que la base de datos responda desde el arranque
   try {
     await DatabaseHelper.instance.database;
   } catch (e) {
@@ -28,8 +27,10 @@ void main() async {
   }
   runApp(const AppVentasHob());
 }
+
 class AppVentasHob extends StatelessWidget {
   const AppVentasHob({super.key});
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -40,21 +41,26 @@ class AppVentasHob extends StatelessWidget {
     );
   }
 }
+
 // ==========================================
 // BASE DE DATOS LOCAL (SQLITE)
 // ==========================================
 class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._init();
   static Database? _database;
+
   DatabaseHelper._init();
+
   Future<Database> get database async {
     if (_database != null) return _database!;
     _database = await _initDB('ventas_app.db');
     return _database!;
   }
+
   Future<Database> _initDB(String filePath) async {
     final dbPath = await getDatabasesPath();
     final path = '$dbPath/$filePath';
+
     return await openDatabase(
       path,
       version: 2,
@@ -62,6 +68,7 @@ class DatabaseHelper {
       onUpgrade: _onUpgradeDB,
     );
   }
+
   Future _createDB(Database db, int version) async {
     await db.execute('''
       CREATE TABLE clientes (
@@ -70,6 +77,7 @@ class DatabaseHelper {
         telefono TEXT
       )
     ''');
+
     await db.execute('''
       CREATE TABLE productos (
         codigo TEXT PRIMARY KEY,
@@ -77,6 +85,7 @@ class DatabaseHelper {
         precio REAL
       )
     ''');
+
     await db.execute('''
       CREATE TABLE pedidos (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -89,6 +98,7 @@ class DatabaseHelper {
       )
     ''');
   }
+
   Future _onUpgradeDB(Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 2) {
       try {
@@ -96,6 +106,7 @@ class DatabaseHelper {
       } catch (_) {}
     }
   }
+
   Future<void> sincronizarClientesDesdeCSV(String csvData) async {
     final db = await instance.database;
     List<String> lineas = csvData.split('\n');
@@ -115,6 +126,7 @@ class DatabaseHelper {
       }
     });
   }
+
   Future<void> sincronizarProductosDesdeCSV(String csvData) async {
     final db = await instance.database;
     List<String> lineas = csvData.split('\n');
@@ -139,40 +151,6 @@ class DatabaseHelper {
 }
 
 // ==========================================
-// MODELOS DE DATOS (Order y WeekGroup)
-// ==========================================
-
-class Order {
-  final String id;
-  final String clientCode;
-  final String clientName;
-  final double totalAmount;
-  double deliveryValue; // Valor editable para la entrega
-  String comments;      // Comentarios de la entrega
-
-  Order({
-    required this.id,
-    required this.clientCode,
-    required this.clientName,
-    required this.totalAmount,
-    double? deliveryValue,
-    this.comments = '',
-  }) : deliveryValue = deliveryValue ?? totalAmount; // Preliminarmente toma el valor del pedido
-}
-
-class WeekGroup {
-  final String weekName;
-  final List<Order> orders;
-
-  WeekGroup({
-    required this.weekName,
-    required this.orders,
-  });
-}
-
-//==================================================FIN
-
-// ==========================================
 // MENÚ PRINCIPAL CON PESTAÑAS
 // ==========================================
 class MenuPrincipal extends StatefulWidget {
@@ -184,8 +162,6 @@ class MenuPrincipal extends StatefulWidget {
 
 class MenuPrincipalState extends State<MenuPrincipal> {
   int _indiceActual = 0;
-  
-  // Controlador de páginas para permitir el deslizamiento horizontal
   late final PageController _pageController;
 
   int? editandoPedidoId;
@@ -217,17 +193,14 @@ class MenuPrincipalState extends State<MenuPrincipal> {
   Future<void> _cargarBorradorLocal() async {
     final prefs = await SharedPreferences.getInstance();
     int? idTemp = prefs.getInt('editandoPedidoId');
-    if (idTemp != null && idTemp != -1) {
-      editandoPedidoId = idTemp;
-    }
+    if (idTemp != null && idTemp != -1) editandoPedidoId = idTemp;
+
     String? numTemp = prefs.getString('editandoNumeroPedidoFijo');
-    if (numTemp != null && numTemp.isNotEmpty) {
-      editandoNumeroPedidoFijo = numTemp;
-    }
+    if (numTemp != null && numTemp.isNotEmpty) editandoNumeroPedidoFijo = numTemp;
+
     String? cliTemp = prefs.getString('clienteEnCurso');
-    if (cliTemp != null && cliTemp.isNotEmpty) {
-      clienteEnCurso = cliTemp;
-    }
+    if (cliTemp != null && cliTemp.isNotEmpty) clienteEnCurso = cliTemp;
+
     String? prodTemp = prefs.getString('productosEnCurso');
     if (prodTemp != null && prodTemp.isNotEmpty) {
       try {
@@ -272,19 +245,15 @@ class MenuPrincipalState extends State<MenuPrincipal> {
       const VistaGestionClientes(),
       const VistaGestionProductos(),
       const VistaResumenGeneral(),
-            VistaResumenPorProducto(),
-            VistaExportarPdf(),
+      const VistaResumenPorProducto(),
+      const VistaExportarPdf(),
     ];
 
     return Scaffold(
       body: PageView(
         controller: _pageController,
         children: pantallas,
-        onPageChanged: (index) {
-          setState(() {
-            _indiceActual = index;
-          });
-        },
+        onPageChanged: (index) => setState(() => _indiceActual = index),
       ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _indiceActual,
@@ -320,6 +289,7 @@ class VistaCrearPedido extends StatefulWidget {
   final VoidCallback onPedidoGuardado;
   final VoidCallback onCambioDato;
   const VistaCrearPedido({super.key, required this.onPedidoGuardado, required this.onCambioDato});
+
   @override
   State<VistaCrearPedido> createState() => _VistaCrearPedidoState();
 }
@@ -346,6 +316,7 @@ class _VistaCrearPedidoState extends State<VistaCrearPedido> {
       );
       return;
     }
+
     String numPedidoStr;
     if (mainState.editandoNumeroPedidoFijo != null) {
       numPedidoStr = mainState.editandoNumeroPedidoFijo!;
@@ -353,6 +324,7 @@ class _VistaCrearPedidoState extends State<VistaCrearPedido> {
       int numSeq = await _obtenerSiguienteNumeroPedido();
       numPedidoStr = 'Pedido #${numSeq.toString().padLeft(2, '0')}';
     }
+
     double total = mainState.productosEnCurso.fold<double>(
       0.0, 
       (sum, item) => sum + ((item['precio'] as num).toDouble() * (item['cantidad'] as num).toDouble())
@@ -365,6 +337,7 @@ class _VistaCrearPedidoState extends State<VistaCrearPedido> {
           : '';
       return "${p['nombre']}$com (x${p['cantidad']})";
     }).join('; ');
+
     final db = await DatabaseHelper.instance.database;
     
     if (mainState.editandoPedidoId != null) {
@@ -384,6 +357,7 @@ class _VistaCrearPedidoState extends State<VistaCrearPedido> {
         'grupo': '',
       });
     }
+
     widget.onPedidoGuardado();
     changeNotifierPedidos.value++;
     setState(() {});
@@ -423,11 +397,7 @@ class _VistaCrearPedidoState extends State<VistaCrearPedido> {
                           suffixIcon: Icon(Icons.search),
                           border: OutlineInputBorder(),
                         ),
-                        onChanged: (val) {
-                          setStateDialog(() {
-                            filtro = val.trim();
-                          });
-                        },
+                        onChanged: (val) => setStateDialog(() => filtro = val.trim()),
                       ),
                       const SizedBox(height: 12),
                       Expanded(
@@ -454,9 +424,7 @@ class _VistaCrearPedidoState extends State<VistaCrearPedido> {
                                     onTap: () {
                                       final mainState = this.context.findAncestorStateOfType<MenuPrincipalState>();
                                       if (mainState != null) {
-                                        mainState.setState(() {
-                                          mainState.clienteEnCurso = c['nombre'];
-                                        });
+                                        mainState.setState(() => mainState.clienteEnCurso = c['nombre']);
                                         widget.onCambioDato();
                                       }
                                       Navigator.pop(context);
@@ -509,11 +477,7 @@ class _VistaCrearPedidoState extends State<VistaCrearPedido> {
                           suffixIcon: Icon(Icons.search),
                           border: OutlineInputBorder(),
                         ),
-                        onChanged: (val) {
-                          setStateDialog(() {
-                            filtro = val.trim();
-                          });
-                        },
+                        onChanged: (val) => setStateDialog(() => filtro = val.trim()),
                       ),
                       const SizedBox(height: 12),
                       Expanded(
@@ -616,9 +580,7 @@ class _VistaCrearPedidoState extends State<VistaCrearPedido> {
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setStateDialog) {
-          if (index >= mainState.productosEnCurso.length) {
-            return const SizedBox.shrink();
-          }
+          if (index >= mainState.productosEnCurso.length) return const SizedBox.shrink();
           var item = mainState.productosEnCurso[index];
           return AlertDialog(
             title: Text(item['nombre'], style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
@@ -683,10 +645,7 @@ class _VistaCrearPedidoState extends State<VistaCrearPedido> {
               ],
             ),
             actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Cerrar'),
-              ),
+              TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cerrar')),
             ],
           );
         },
@@ -702,6 +661,7 @@ class _VistaCrearPedidoState extends State<VistaCrearPedido> {
       0.0, 
       (sum, item) => sum + ((item['precio'] as num).toDouble() * (item['cantidad'] as num).toDouble())
     ) ?? 0.0;
+
     return Scaffold(
       appBar: AppBar(
         title: Text(estaEditando ? 'Editando ${mainState?.editandoNumeroPedidoFijo}' : 'Crear Pedido'),
@@ -772,11 +732,7 @@ class _VistaCrearPedidoState extends State<VistaCrearPedido> {
                         scrollDirection: Axis.horizontal,
                         child: Text(
                           'Agregar Productos al Pedido...',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.normal,
-                            color: Colors.grey,
-                          ),
+                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.normal, color: Colors.grey),
                         ),
                       ),
                     ),
@@ -794,9 +750,7 @@ class _VistaCrearPedidoState extends State<VistaCrearPedido> {
             const Divider(height: 15),
             Expanded(
               child: (mainState?.productosEnCurso.isEmpty ?? true)
-                  ? const Center(
-                      child: Text('No hay productos agregados todavía.', style: TextStyle(color: Colors.grey, fontSize: 13)),
-                    )
+                  ? const Center(child: Text('No hay productos agregados todavía.', style: TextStyle(color: Colors.grey, fontSize: 13)))
                   : ListView.builder(
                       itemCount: mainState?.productosEnCurso.length ?? 0,
                       itemBuilder: (context, idx) {
@@ -862,31 +816,38 @@ class _VistaCrearPedidoState extends State<VistaCrearPedido> {
       ),
     );
   }
-} // <-- Fin de _VistaCrearPedidoState (Esta llave cierra perfectamente la clase y evita que la siguiente clase quede anidada)
+}
+
 // ==========================================
 // 2. PESTAÑA: HISTORIAL DE PEDIDOS
 // ==========================================
 class VistaHistorialPedidos extends StatefulWidget {
   const VistaHistorialPedidos({super.key});
+
   @override
   State<VistaHistorialPedidos> createState() => _VistaHistorialPedidosState();
 }
+
 class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
   String _filtro = '';
   bool _mostrarArchivados = false;
+
   @override
   void initState() {
     super.initState();
     changeNotifierPedidos.addListener(_recargar);
   }
+
   @override
   void dispose() {
     changeNotifierPedidos.removeListener(_recargar);
     super.dispose();
   }
+
   void _recargar() {
     if (mounted) setState(() {});
   }
+
   Future<List<Map<String, dynamic>>> _obtenerPedidos() async {
     final db = await DatabaseHelper.instance.database;
     String condGrupo = _mostrarArchivados ? "grupo != ''" : "grupo = ''";
@@ -902,41 +863,32 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
       );
     }
   }
+
   void _eliminarPedido(int id) async {
     final db = await DatabaseHelper.instance.database;
     await db.delete('pedidos', where: 'id = ?', whereArgs: [id]);
     changeNotifierPedidos.value++;
     setState(() {});
   }
+
   void _confirmarReseteoHistorial() {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Reiniciar Historial'),
-        content: const Text(
-          '¿Estás seguro de que deseas eliminar todo el historial de pedidos? Esta acción no se puede deshacer y los nuevos pedidos comenzarán desde el Pedido #01.',
-        ),
+        content: const Text('¿Estás seguro de que deseas eliminar todo el historial de pedidos? Esta acción no se puede deshacer.'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('NO', style: TextStyle(color: Colors.grey)),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('NO', style: TextStyle(color: Colors.grey))),
           TextButton(
             onPressed: () async {
               Navigator.pop(context);
               final db = await DatabaseHelper.instance.database;
               await db.delete('pedidos');
-              
               try {
                 await db.execute("DELETE FROM sqlite_sequence WHERE name='pedidos'");
               } catch (_) {}
               changeNotifierPedidos.value++;
               setState(() {});
-              
-              if (!mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Historial de pedidos reseteado con éxito')),
-              );
             },
             child: const Text('SÍ', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
           ),
@@ -944,15 +896,14 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
       ),
     );
   }
+
   void _mostrarDialogoAgruparPedidos() async {
     final db = await DatabaseHelper.instance.database;
     final pedidosActivos = await db.query('pedidos', where: "grupo = ''", orderBy: 'id ASC');
     
     if (pedidosActivos.isEmpty) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No hay pedidos activos disponibles para agrupar')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No hay pedidos activos disponibles para agrupar')));
       return;
     }
     Set<int> seleccionadosIds = {};
@@ -969,14 +920,9 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
               children: [
                 TextField(
                   controller: nombreGrupoController,
-                  decoration: const InputDecoration(
-                    labelText: 'Nombre del grupo (Ej. Pedidos Semana 01)',
-                    border: OutlineInputBorder(),
-                  ),
+                  decoration: const InputDecoration(labelText: 'Nombre del grupo', border: OutlineInputBorder()),
                 ),
                 const SizedBox(height: 10),
-                const Text('Selecciona los pedidos a agrupar:', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                const SizedBox(height: 5),
                 Expanded(
                   child: ListView.builder(
                     itemCount: pedidosActivos.length,
@@ -994,11 +940,8 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
                         value: isSelected,
                         onChanged: (bool? val) {
                           setStateDialog(() {
-                            if (val == true) {
-                              seleccionadosIds.add(id);
-                            } else {
-                              seleccionadosIds.remove(id);
-                            }
+                            if (val == true) seleccionadosIds.add(id);
+                            else seleccionadosIds.remove(id);
                           });
                         },
                       );
@@ -1009,19 +952,11 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
             ),
           ),
           actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancelar'),
-            ),
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
             ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo, foregroundColor: Colors.white),
               onPressed: () async {
-                if (seleccionadosIds.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Selecciona al menos un pedido')),
-                  );
-                  return;
-                }
+                if (seleccionadosIds.isEmpty) return;
                 String nombreGrupo = nombreGrupoController.text.trim();
                 if (nombreGrupo.isEmpty) nombreGrupo = 'Grupo de Pedidos';
                 for (int id in seleccionadosIds) {
@@ -1031,9 +966,6 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
                 Navigator.pop(context);
                 changeNotifierPedidos.value++;
                 setState(() {});
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Pedidos agrupados y ocultados en "$nombreGrupo" con éxito')),
-                );
               },
               child: const Text('Guardar y Ocultar'),
             ),
@@ -1042,6 +974,7 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
       ),
     );
   }
+
   void _editarPedido(Map<String, dynamic> pedido) async {
     final mainState = context.findAncestorStateOfType<MenuPrincipalState>();
     if (mainState == null) return;
@@ -1077,23 +1010,13 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
       }
         
       cantidadTotalItems += cantidad;
-      itemsTemporales.add({
-        'nombre': nombreProd,
-        'cantidad': cantidad,
-        'comentario': comentario,
-      });
+      itemsTemporales.add({'nombre': nombreProd, 'cantidad': cantidad, 'comentario': comentario});
     }
      
     final db = await DatabaseHelper.instance.database;
-     
     for (var temp in itemsTemporales) {
       double precioUnitario = 0.0;
-      final resProd = await db.query(
-        'productos',
-        where: 'nombre = ?',
-        whereArgs: [temp['nombre']],
-        limit: 1,
-      );
+      final resProd = await db.query('productos', where: 'nombre = ?', whereArgs: [temp['nombre']], limit: 1);
        
       if (resProd.isNotEmpty) {
         precioUnitario = (resProd.first['precio'] as num?)?.toDouble() ?? 0.0;
@@ -1115,18 +1038,13 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
       productosEdit,
     );
   }
+
   Future<void> _exportarPdfPedidoIndividual(Map<String, dynamic> pedido) async {
     final pdf = pw.Document();
     final db = await DatabaseHelper.instance.database;
     final clienteNombre = pedido['cliente']?.toString() ?? 'Cliente';
      
-    final resCliente = await db.query(
-      'clientes',
-      where: 'nombre = ?',
-      whereArgs: [clienteNombre],
-      limit: 1,
-    );
-     
+    final resCliente = await db.query('clientes', where: 'nombre = ?', whereArgs: [clienteNombre], limit: 1);
     String telefonoCliente = '';
     String codigoCliente = '';
     if (resCliente.isNotEmpty) {
@@ -1158,12 +1076,7 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
       conteoLineasProductos++; 
       double precioUnitario = 0.0;
       String codigoProd = '';
-      final resProd = await db.query(
-        'productos',
-        where: 'nombre = ?',
-        whereArgs: [nombreBusqueda],
-        limit: 1,
-      );
+      final resProd = await db.query('productos', where: 'nombre = ?', whereArgs: [nombreBusqueda], limit: 1);
       if (resProd.isNotEmpty) {
         precioUnitario = (resProd.first['precio'] as num?)?.toDouble() ?? 0.0;
         codigoProd = resProd.first['codigo']?.toString() ?? '';
@@ -1186,28 +1099,14 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
               if (codigoProd.isNotEmpty)
-                pw.Text(
-                  '[$codigoProd] ',
-                  style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10),
-                ),
-              pw.Expanded(
-                child: pw.Text(
-                  nombreLimpio,
-                  style: pw.TextStyle(fontSize: 10),
-                ),
-              ),
+                pw.Text('[$codigoProd] ', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
+              pw.Expanded(child: pw.Text(nombreLimpio, style: pw.TextStyle(fontSize: 10))),
             ],
           ),
           if (detalleComentario.isNotEmpty)
             pw.Padding(
               padding: pw.EdgeInsets.only(left: codigoProd.isNotEmpty ? (codigoProd.length * 6.0) + 12.0 : 0.0, top: 2.0),
-              child: pw.Text(
-                detalleComentario,
-                style: const pw.TextStyle(
-                  fontSize: 10,
-                  color: PdfColors.grey700,
-                ),
-              ),
+              child: pw.Text(detalleComentario, style: const pw.TextStyle(fontSize: 10, color: PdfColors.grey700)),
             ),
         ],
       );
@@ -1220,24 +1119,15 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
     }
      
     double totalPedido = (pedido['total'] as num?)?.toDouble() ?? 0.0;
-   
     Directory? directorio;
     if (Platform.isAndroid) {
       final directories = await getExternalStorageDirectories(type: StorageDirectory.downloads);
-      if (directories != null && directories.isNotEmpty) {
-        directorio = directories.first;
-      } else {
-        directorio = await getExternalStorageDirectory();
-      }
+      directorio = (directories != null && directories.isNotEmpty) ? directories.first : await getExternalStorageDirectory();
     } else {
       directorio = await getApplicationDocumentsDirectory();
     }
-    String numPedidoRaw = pedido['numero_pedido']?.toString() ?? '';
-    if (numPedidoRaw.isEmpty) {
-      numPedidoRaw = 'Pedido #${pedido['id']}';
-    }
-    String numeroPedidoFormateado = numPedidoRaw;
-    
+    String numPedidoRaw = pedido['numero_pedido']?.toString() ?? 'Pedido #${pedido['id']}';
+
     pdf.addPage(
       pw.Page(
         pageFormat: PdfPageFormat.letter,
@@ -1253,14 +1143,7 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
                   pw.Column(
                     crossAxisAlignment: pw.CrossAxisAlignment.start,
                     children: [
-                      pw.Text(
-                        'D  I  S  C  O  S  M  O',
-                        style: pw.TextStyle(
-                          fontSize: 25,
-                          fontWeight: pw.FontWeight.bold,
-                          color: PdfColors.indigo900,
-                        ),
-                      ),
+                      pw.Text('D  I  S  C  O  S  M  O', style: pw.TextStyle(fontSize: 25, fontWeight: pw.FontWeight.bold, color: PdfColors.indigo900)),
                       pw.SizedBox(height: 5),
                       pw.Text('Productos Industrias Chamer y Mas', style: const pw.TextStyle(fontSize: 14, color: PdfColors.grey700)),
                     ],
@@ -1270,7 +1153,7 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
                     children: [
                       pw.Text('FECHA: ${pedido['fecha']?.toString().substring(0, 10) ?? ''}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 11)),
                       pw.SizedBox(height: 3),
-                      pw.Text(numeroPedidoFormateado, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12, color: PdfColors.indigo900)),
+                      pw.Text(numPedidoRaw, style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12, color: PdfColors.indigo900)),
                     ],
                   ),
                 ],
@@ -1281,10 +1164,8 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
               pw.Text('CLIENTE:', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold, color: PdfColors.grey700)),
               pw.SizedBox(height: 2),
               pw.Text(clienteNombre, style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
-              if (codigoCliente.isNotEmpty)
-                pw.Text('Código: $codigoCliente', style: const pw.TextStyle(fontSize: 14, color: PdfColors.grey700)),
-              if (telefonoCliente.isNotEmpty)
-                pw.Text('Teléfono: $telefonoCliente', style: const pw.TextStyle(fontSize: 14, color: PdfColors.grey700)),
+              if (codigoCliente.isNotEmpty) pw.Text('Código: $codigoCliente', style: const pw.TextStyle(fontSize: 14, color: PdfColors.grey700)),
+              if (telefonoCliente.isNotEmpty) pw.Text('Teléfono: $telefonoCliente', style: const pw.TextStyle(fontSize: 14, color: PdfColors.grey700)),
              
               pw.SizedBox(height: 20),
               pw.Table(
@@ -1299,43 +1180,19 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
                   pw.TableRow(
                     decoration: const pw.BoxDecoration(color: PdfColors.indigo),
                     children: [
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.all(6),
-                        child: pw.Text('Cantidad', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white, fontSize: 10)),
-                      ),
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.all(6),
-                        child: pw.Text('Descripción', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white, fontSize: 10)),
-                      ),
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.all(6),
-                        child: pw.Text('Precio Unitario', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white, fontSize: 10), textAlign: pw.TextAlign.right),
-                      ),
-                      pw.Padding(
-                        padding: const pw.EdgeInsets.all(6),
-                        child: pw.Text('Valor Total', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white, fontSize: 10), textAlign: pw.TextAlign.right),
-                      ),
+                      pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text('Cantidad', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white, fontSize: 10))),
+                      pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text('Descripción', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white, fontSize: 10))),
+                      pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text('Precio Unitario', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white, fontSize: 10), textAlign: pw.TextAlign.right)),
+                      pw.Padding(padding: const pw.EdgeInsets.all(6), child: pw.Text('Valor Total', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white, fontSize: 10), textAlign: pw.TextAlign.right)),
                     ],
                   ),
                   for (var fila in filasProductos)
                     pw.TableRow(
                       children: [
-                        pw.Padding(
-                          padding: const pw.EdgeInsets.symmetric(vertical: 6, horizontal: 4),
-                          child: fila[0],
-                        ),
-                        pw.Padding(
-                          padding: const pw.EdgeInsets.symmetric(vertical: 6, horizontal: 4),
-                          child: fila[1],
-                        ),
-                        pw.Padding(
-                          padding: const pw.EdgeInsets.symmetric(vertical: 6, horizontal: 4),
-                          child: pw.Align(alignment: pw.Alignment.centerRight, child: fila[2]),
-                        ),
-                        pw.Padding(
-                          padding: const pw.EdgeInsets.symmetric(vertical: 6, horizontal: 4),
-                          child: pw.Align(alignment: pw.Alignment.centerRight, child: fila[3]),
-                        ),
+                        pw.Padding(padding: const pw.EdgeInsets.symmetric(vertical: 6, horizontal: 4), child: fila[0]),
+                        pw.Padding(padding: const pw.EdgeInsets.symmetric(vertical: 6, horizontal: 4), child: fila[1]),
+                        pw.Padding(padding: const pw.EdgeInsets.symmetric(vertical: 6, horizontal: 4), child: pw.Align(alignment: pw.Alignment.centerRight, child: fila[2])),
+                        pw.Padding(padding: const pw.EdgeInsets.symmetric(vertical: 6, horizontal: 4), child: pw.Align(alignment: pw.Alignment.centerRight, child: fila[3])),
                       ],
                     ),
                 ],
@@ -1343,14 +1200,10 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
               pw.SizedBox(height: 20),
               pw.Row(
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                crossAxisAlignment: pw.CrossAxisAlignment.start,
                 children: [
                   pw.Container(
                     padding: const pw.EdgeInsets.all(8),
-                    decoration: pw.BoxDecoration(
-                      border: pw.Border.all(color: PdfColors.grey400),
-                      borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
-                    ),
+                    decoration: pw.BoxDecoration(border: pw.Border.all(color: PdfColors.grey400), borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4))),
                     width: 180,
                     child: pw.Column(
                       crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -1365,29 +1218,11 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
                     width: 220,
                     child: pw.Column(
                       children: [
-                        pw.Row(
-                          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                          children: [
-                            pw.Text('Subtotal', style: const pw.TextStyle(fontSize: 12)),
-                            pw.Text('L ${totalPedido.toStringAsFixed(2)}', style: const pw.TextStyle(fontSize: 12)),
-                          ],
-                        ),
+                        pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [pw.Text('Subtotal', style: const pw.TextStyle(fontSize: 12)), pw.Text('L ${totalPedido.toStringAsFixed(2)}', style: const pw.TextStyle(fontSize: 12))]),
                         pw.SizedBox(height: 5),
-                        pw.Row(
-                          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                          children: [
-                            pw.Text('ISV', style: const pw.TextStyle(fontSize: 12)),
-                            pw.Text('L 0.00', style: const pw.TextStyle(fontSize: 12)),
-                          ],
-                        ),
+                        pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [pw.Text('ISV', style: const pw.TextStyle(fontSize: 12)), pw.Text('L 0.00', style: const pw.TextStyle(fontSize: 12))]),
                         pw.Divider(color: PdfColors.grey400),
-                        pw.Row(
-                          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                          children: [
-                            pw.Text('Gran Total', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 13)),
-                            pw.Text('L ${totalPedido.toStringAsFixed(2)}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12, color: PdfColors.indigo900)),
-                          ],
-                        ),
+                        pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [pw.Text('Gran Total', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 13)), pw.Text('L ${totalPedido.toStringAsFixed(2)}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12, color: PdfColors.indigo900))]),
                       ],
                     ),
                   ),
@@ -1398,23 +1233,20 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
         },
       ),
     );
+
     try {
-      String numPedLimpio = (pedido['numero_pedido']?.toString() ?? 'pedido').replaceAll('#', '').replaceAll(' ', '_');
+      String numPedLimpio = numPedidoRaw.replaceAll('#', '').replaceAll(' ', '_');
       final ruta = '${directorio!.path}/Nota_$numPedLimpio.pdf';
       final archivo = File(ruta);
       await archivo.writeAsBytes(await pdf.save());
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('PDF guardado en Descargas: Nota_$numPedLimpio.pdf')),
-      );
       await Printing.layoutPdf(onLayout: (format) async => pdf.save());
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error al generar el PDF: $e')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error al generar el PDF: $e')));
     }
   }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -1430,16 +1262,13 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
                   icon: Icon(_mostrarArchivados ? Icons.list : Icons.archive, color: Colors.white),
                   tooltip: _mostrarArchivados ? 'Ver pedidos activos' : 'Agrupar y archivar pedidos',
                   onPressed: () {
-                    if (_mostrarArchivados) {
-                      setState(() => _mostrarArchivados = false);
-                    } else {
-                      _mostrarDialogoAgruparPedidos();
-                    }
+                    if (_mostrarArchivados) setState(() => _mostrarArchivados = false);
+                    else _mostrarDialogoAgruparPedidos();
                   },
                 ),
                 IconButton(
                   icon: const Icon(Icons.delete_sweep, color: Colors.amberAccent),
-                  tooltip: 'Resetear historial de pedidos',
+                  tooltip: 'Resetear historial',
                   onPressed: _confirmarReseteoHistorial,
                 ),
               ],
@@ -1457,16 +1286,8 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
               children: [
                 Expanded(
                   child: TextField(
-                    decoration: const InputDecoration(
-                      labelText: 'Buscar por cliente o número de pedido...',
-                      prefixIcon: Icon(Icons.search),
-                      border: OutlineInputBorder(),
-                    ),
-                    onChanged: (val) {
-                      setState(() {
-                        _filtro = val.trim();
-                      });
-                    },
+                    decoration: const InputDecoration(labelText: 'Buscar por cliente o número...', prefixIcon: Icon(Icons.search), border: OutlineInputBorder()),
+                    onChanged: (val) => setState(() => _filtro = val.trim()),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -1477,11 +1298,7 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
                   ),
                   icon: Icon(_mostrarArchivados ? Icons.folder_open : Icons.folder_special),
                   label: Text(_mostrarArchivados ? 'Ver Activos' : 'Archivados'),
-                  onPressed: () {
-                    setState(() {
-                      _mostrarArchivados = !_mostrarArchivados;
-                    });
-                  },
+                  onPressed: () => setState(() => _mostrarArchivados = !_mostrarArchivados),
                 ),
               ],
             ),
@@ -1493,18 +1310,12 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
                   if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
                   final pedidos = snapshot.data!;
                   if (pedidos.isEmpty) {
-                    return Center(
-                      child: Text(
-                        _mostrarArchivados ? 'No hay pedidos archivados o agrupados' : 'No hay pedidos registrados',
-                        style: const TextStyle(color: Colors.grey),
-                      ),
-                    );
+                    return Center(child: Text(_mostrarArchivados ? 'No hay pedidos archivados' : 'No hay pedidos registrados', style: const TextStyle(color: Colors.grey)));
                   }
                   return ListView.builder(
                     itemCount: pedidos.length,
                     itemBuilder: (context, index) {
                       final p = pedidos[index];
-                       
                       final String numPedido = p['numero_pedido']?.toString() ?? 'Pedido #${p['id']}';
                       final String cliente = p['cliente']?.toString() ?? 'Sin cliente';
                       final String fecha = p['fecha']?.toString() ?? '';
@@ -1512,11 +1323,8 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
                       final String grupo = p['grupo']?.toString() ?? '';
                        
                       String productosJson = p['productos_json']?.toString() ?? '';
-                      List<String> listaProductos = productosJson
-                          .split(';')
-                          .map((prod) => prod.trim())
-                          .where((prod) => prod.isNotEmpty)
-                          .toList();
+                      List<String> listaProductos = productosJson.split(';').map((prod) => prod.trim()).where((prod) => prod.isNotEmpty).toList();
+                      
                       return Container(
                         width: double.infinity,
                         margin: const EdgeInsets.symmetric(vertical: 6),
@@ -1534,75 +1342,32 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
                                     Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
-                                        Text(
-                                          numPedido,
-                                          style: const TextStyle(
-                                            fontSize: 18,
-                                            fontWeight: FontWeight.bold,
-                                            color: Colors.indigo,
-                                          ),
-                                        ),
-                                        if (grupo.isNotEmpty)
-                                          Text(
-                                            'Bloque: $grupo',
-                                            style: const TextStyle(fontSize: 11, color: Colors.amber, fontWeight: FontWeight.bold),
-                                          ),
+                                        Text(numPedido, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.indigo)),
+                                        if (grupo.isNotEmpty) Text('Bloque: $grupo', style: const TextStyle(fontSize: 11, color: Colors.amber, fontWeight: FontWeight.bold)),
                                       ],
                                     ),
                                     Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
-                                        IconButton(
-                                          icon: const Icon(Icons.picture_as_pdf, color: Colors.indigo, size: 22),
-                                          tooltip: 'Generar PDF del Pedido',
-                                          onPressed: () => _exportarPdfPedidoIndividual(p),
-                                        ),
-                                        IconButton(
-                                          icon: const Icon(Icons.edit, color: Colors.blue, size: 22),
-                                          onPressed: () => _editarPedido(p),
-                                        ),
-                                        IconButton(
-                                          icon: const Icon(Icons.delete, color: Colors.red, size: 22),
-                                          onPressed: () => _eliminarPedido(p['id']),
-                                        ),
+                                        IconButton(icon: const Icon(Icons.picture_as_pdf, color: Colors.indigo, size: 22), onPressed: () => _exportarPdfPedidoIndividual(p)),
+                                        IconButton(icon: const Icon(Icons.edit, color: Colors.blue, size: 22), onPressed: () => _editarPedido(p)),
+                                        IconButton(icon: const Icon(Icons.delete, color: Colors.red, size: 22), onPressed: () => _eliminarPedido(p['id'])),
                                       ],
                                     ),
                                   ],
                                 ),
                                 const Divider(height: 16),
-                                Text(
-                                  cliente,
-                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-                                ),
+                                Text(cliente, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
                                 const SizedBox(height: 10),
-                                const Text(
-                                  'Productos:',
-                                  style: TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo),
-                                ),
+                                const Text('Productos:', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo)),
                                 const SizedBox(height: 4),
-                                ...listaProductos.map((prod) => Padding(
-                                  padding: const EdgeInsets.only(bottom: 2),
-                                  child: Text(
-                                    '• $prod',
-                                    style: const TextStyle(fontSize: 13),
-                                  ),
-                                )),
+                                ...listaProductos.map((prod) => Padding(padding: const EdgeInsets.only(bottom: 2), child: Text('• $prod', style: const TextStyle(fontSize: 13)))),
                                 const Divider(height: 16),
                                 Row(
                                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                   children: [
-                                    Text(
-                                      'Total: L ${total.toStringAsFixed(2)}',
-                                      style: const TextStyle(
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.green,
-                                      ),
-                                    ),
-                                    Text(
-                                      fecha,
-                                      style: const TextStyle(fontSize: 12, color: Colors.grey),
-                                    ),
+                                    Text('Total: L ${total.toStringAsFixed(2)}', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.green)),
+                                    Text(fecha, style: const TextStyle(fontSize: 12, color: Colors.grey)),
                                   ],
                                 ),
                               ],
@@ -1621,16 +1386,20 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
     );
   }
 }
+
 // ==========================================
 // 3. PESTAÑA: GESTIÓN DE CLIENTES
 // ==========================================
 class VistaGestionClientes extends StatefulWidget {
   const VistaGestionClientes({super.key});
+
   @override
   State<VistaGestionClientes> createState() => _VistaGestionClientesState();
 }
+
 class _VistaGestionClientesState extends State<VistaGestionClientes> {
   bool _cargando = false;
+
   Future<void> _sincronizar() async {
     setState(() => _cargando = true);
     try {
@@ -1639,16 +1408,15 @@ class _VistaGestionClientesState extends State<VistaGestionClientes> {
         await DatabaseHelper.instance.sincronizarClientesDesdeCSV(response.body);
         if(!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Clientes sincronizados con éxito')));
-      } else {
-        throw Exception('Error al descargar CSV');
       }
     } catch (e) {
       if(!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error de sincronización: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
     } finally {
       setState(() => _cargando = false);
     }
   }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -1656,13 +1424,7 @@ class _VistaGestionClientesState extends State<VistaGestionClientes> {
         title: const Text('Gestión de Clientes'),
         backgroundColor: Colors.indigo,
         foregroundColor: Colors.white,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.sync),
-            tooltip: 'Sincronizar desde Google Sheets',
-            onPressed: _cargando ? null : _sincronizar,
-          ),
-        ],
+        actions: [IconButton(icon: const Icon(Icons.sync), onPressed: _cargando ? null : _sincronizar)],
       ),
       body: _cargando
           ? const Center(child: CircularProgressIndicator())
@@ -1672,16 +1434,7 @@ class _VistaGestionClientesState extends State<VistaGestionClientes> {
                 if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
                 final clientes = snapshot.data!;
                 if (clientes.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Text('No hay clientes. Sincroniza desde Google Sheets.'),
-                        const SizedBox(height: 10),
-                        ElevatedButton(onPressed: _sincronizar, child: const Text('Sincronizar Ahora'))
-                      ],
-                    ),
-                  );
+                  return Center(child: ElevatedButton(onPressed: _sincronizar, child: const Text('Sincronizar Clientes')));
                 }
                 return ListView.builder(
                   itemCount: clientes.length,
@@ -1696,9 +1449,7 @@ class _VistaGestionClientesState extends State<VistaGestionClientes> {
                           icon: const Icon(Icons.phone, color: Colors.green),
                           onPressed: () async {
                             final Uri launchUri = Uri(scheme: 'tel', path: c['telefono']);
-                            if (await canLaunchUrl(launchUri)) {
-                              await launchUrl(launchUri);
-                            }
+                            if (await canLaunchUrl(launchUri)) await launchUrl(launchUri);
                           },
                         ),
                       ),
@@ -1710,16 +1461,20 @@ class _VistaGestionClientesState extends State<VistaGestionClientes> {
     );
   }
 }
+
 // ==========================================
 // 4. PESTAÑA: GESTIÓN DE PRODUCTOS
 // ==========================================
 class VistaGestionProductos extends StatefulWidget {
   const VistaGestionProductos({super.key});
+
   @override
   State<VistaGestionProductos> createState() => _VistaGestionProductosState();
 }
+
 class _VistaGestionProductosState extends State<VistaGestionProductos> {
   bool _cargando = false;
+
   Future<void> _sincronizar() async {
     setState(() => _cargando = true);
     try {
@@ -1728,16 +1483,15 @@ class _VistaGestionProductosState extends State<VistaGestionProductos> {
         await DatabaseHelper.instance.sincronizarProductosDesdeCSV(response.body);
         if(!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Productos sincronizados con éxito')));
-      } else {
-        throw Exception('Error al descargar CSV');
       }
     } catch (e) {
       if(!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error de sincronización: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
     } finally {
       setState(() => _cargando = false);
     }
   }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -1745,13 +1499,7 @@ class _VistaGestionProductosState extends State<VistaGestionProductos> {
         title: const Text('Gestión de Productos'),
         backgroundColor: Colors.indigo,
         foregroundColor: Colors.white,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.sync),
-            tooltip: 'Sincronizar desde Google Sheets',
-            onPressed: _cargando ? null : _sincronizar,
-          ),
-        ],
+        actions: [IconButton(icon: const Icon(Icons.sync), onPressed: _cargando ? null : _sincronizar)],
       ),
       body: _cargando
           ? const Center(child: CircularProgressIndicator())
@@ -1761,16 +1509,7 @@ class _VistaGestionProductosState extends State<VistaGestionProductos> {
                 if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
                 final productos = snapshot.data!;
                 if (productos.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Text('No hay productos. Sincroniza desde Google Sheets.'),
-                        const SizedBox(height: 10),
-                        ElevatedButton(onPressed: _sincronizar, child: const Text('Sincronizar Ahora'))
-                      ],
-                    ),
-                  );
+                  return Center(child: ElevatedButton(onPressed: _sincronizar, child: const Text('Sincronizar Productos')));
                 }
                 return ListView.builder(
                   itemCount: productos.length,
@@ -1791,28 +1530,34 @@ class _VistaGestionProductosState extends State<VistaGestionProductos> {
     );
   }
 }
+
 // ==========================================
 // 5. PESTAÑA: RESUMEN GENERAL
 // ==========================================
 class VistaResumenGeneral extends StatefulWidget {
   const VistaResumenGeneral({super.key});
+
   @override
   State<VistaResumenGeneral> createState() => _VistaResumenGeneralState();
 }
+
 class _VistaResumenGeneralState extends State<VistaResumenGeneral> {
   @override
   void initState() {
     super.initState();
     changeNotifierPedidos.addListener(_recargar);
   }
+
   @override
   void dispose() {
     changeNotifierPedidos.removeListener(_recargar);
     super.dispose();
   }
+
   void _recargar() {
     if (mounted) setState(() {});
   }
+
   Future<Map<String, dynamic>> _obtenerResumen() async {
     final db = await DatabaseHelper.instance.database;
     final totalPedidosRes = await db.rawQuery('SELECT COUNT(*) as count, SUM(total) as suma FROM pedidos');
@@ -1821,14 +1566,11 @@ class _VistaResumenGeneralState extends State<VistaResumenGeneral> {
     double suma = (resultado['suma'] as num?)?.toDouble() ?? 0.0;
     return {'count': count, 'suma': suma};
   }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Resumen General'),
-        backgroundColor: Colors.indigo,
-        foregroundColor: Colors.white,
-      ),
+      appBar: AppBar(title: const Text('Resumen General'), backgroundColor: Colors.indigo, foregroundColor: Colors.white),
       body: FutureBuilder<Map<String, dynamic>>(
         future: _obtenerResumen(),
         builder: (context, snapshot) {
@@ -1839,33 +1581,9 @@ class _VistaResumenGeneralState extends State<VistaResumenGeneral> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Card(
-                  elevation: 4,
-                  child: Padding(
-                    padding: const EdgeInsets.all(20.0),
-                    child: Column(
-                      children: [
-                        const Text('Total de Pedidos Realizados', style: TextStyle(fontSize: 16, color: Colors.grey)),
-                        const SizedBox(height: 10),
-                        Text('${data['count']}', style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.indigo)),
-                      ],
-                    ),
-                  ),
-                ),
+                Card(elevation: 4, child: Padding(padding: const EdgeInsets.all(20.0), child: Column(children: [const Text('Total de Pedidos Realizados', style: TextStyle(fontSize: 16, color: Colors.grey)), const SizedBox(height: 10), Text('${data['count']}', style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.indigo))]))),
                 const SizedBox(height: 20),
-                Card(
-                  elevation: 4,
-                  child: Padding(
-                    padding: const EdgeInsets.all(20.0),
-                    child: Column(
-                      children: [
-                        const Text('Monto Total Vendido', style: TextStyle(fontSize: 16, color: Colors.grey)),
-                        const SizedBox(height: 10),
-                        Text('L ${(data['suma'] as double).toStringAsFixed(2)}', style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.green)),
-                      ],
-                    ),
-                  ),
-                ),
+                Card(elevation: 4, child: Padding(padding: const EdgeInsets.all(20.0), child: Column(children: [const Text('Monto Total Vendido', style: TextStyle(fontSize: 16, color: Colors.grey)), const SizedBox(height: 10), Text('L ${(data['suma'] as double).toStringAsFixed(2)}', style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: Colors.green))]))),
               ],
             ),
           );
@@ -1874,73 +1592,81 @@ class _VistaResumenGeneralState extends State<VistaResumenGeneral> {
     );
   }
 }
-// ========================================================================
-// PESTAÑA: RESUMEN POR PRODUCTO CON BOTÓN DE EXPORTACIÓN A PDF EN EL APPBAR
-// =========================================================================
 
+// ========================================================================
+// 6. PESTAÑA: RESUMEN POR PRODUCTO (CON LÓGICA DE JSON Y EXPORTACIÓN A PDF)
+// =========================================================================
 class VistaResumenPorProducto extends StatefulWidget {
-  const VistaResumenPorProducto({Key? key}) : super(key: key);
+  const VistaResumenPorProducto({super.key});
 
   @override
   State<VistaResumenPorProducto> createState() => _VistaResumenPorProductoState();
 }
 
 class _VistaResumenPorProductoState extends State<VistaResumenPorProducto> {
-  List<Map<String, dynamic>> _resumenProductos = [];
-  bool _cargando = true;
-
   @override
   void initState() {
     super.initState();
-    _cargarResumen();
+    changeNotifierPedidos.addListener(_recargar);
   }
 
-  Future<void> _cargarResumen() async {
-    setState(() => _cargando = true);
-    try {
-      final db = await DatabaseHelper.instance.database;
-      final List<Map<String, dynamic>> resultado = await db.rawQuery('''
-        SELECT nombre_producto, SUM(cantidad) AS total_cantidad
-        FROM detalle_pedidos
-        GROUP BY nombre_producto
-        ORDER BY total_cantidad DESC
-      ''');
+  @override
+  void dispose() {
+    changeNotifierPedidos.removeListener(_recargar);
+    super.dispose();
+  }
 
-      setState(() {
-        _resumenProductos = resultado;
-        _cargando = false;
-      });
-    } catch (e) {
-      setState(() => _cargando = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al cargar resumen: $e')),
-        );
+  void _recargar() {
+    if (mounted) setState(() {});
+  }
+
+  Future<Map<String, int>> _calcularResumenProductos() async {
+    final db = await DatabaseHelper.instance.database;
+    final pedidos = await db.query('pedidos');
+    Map<String, int> conteoUnidades = {};
+
+    for (var p in pedidos) {
+      String prodString = p['productos_json']?.toString() ?? '';
+      List<String> items = prodString.split(';');
+      for (var item in items) {
+        item = item.trim();
+        if (item.isEmpty) continue;
+        try {
+          RegExp regExp = RegExp(r'\s*\(x(\d+)\)$');
+          Match? match = regExp.firstMatch(item);
+          int cant = 1;
+          String nombreProd = item;
+          if (match != null) {
+            cant = int.tryParse(match.group(1) ?? '1') ?? 1;
+            nombreProd = item.replaceFirst(regExp, '').trim();
+          }
+          // Limpiar comentarios si los tiene
+          int bracketStart = nombreProd.indexOf('[');
+          int bracketEnd = nombreProd.lastIndexOf(']');
+          if (bracketStart != -1 && bracketEnd != -1 && bracketEnd > bracketStart) {
+            nombreProd = nombreProd.substring(0, bracketStart).trim();
+          }
+          conteoUnidades[nombreProd] = (conteoUnidades[nombreProd] ?? 0) + cant;
+        } catch (_) {}
       }
     }
+    return conteoUnidades;
   }
 
-  // GENERAR Y GUARDAR PDF DEL RESUMEN POR PRODUCTO
-  Future<void> _generarPdfResumen() async {
-    if (_resumenProductos.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No hay productos para exportar')),
-      );
+  Future<void> _generarPdfResumen(Map<String, int> resumen) async {
+    if (resumen.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No hay productos para exportar')));
       return;
     }
-
     try {
       final pdf = pw.Document();
-      
       int granTotalUnidades = 0;
       List<List<String>> filas = [];
-
-      for (var item in _resumenProductos) {
-        String prod = item['nombre_producto']?.toString() ?? 'Producto';
-        int cant = (item['total_cantidad'] as num?)?.toInt() ?? 0;
+      
+      resumen.forEach((prod, cant) {
         granTotalUnidades += cant;
         filas.add([prod, cant.toString()]);
-      }
+      });
 
       pdf.addPage(
         pw.MultiPage(
@@ -1954,7 +1680,7 @@ class _VistaResumenPorProductoState extends State<VistaResumenPorProducto> {
                   pw.Column(
                     crossAxisAlignment: pw.CrossAxisAlignment.start,
                     children: [
-                      pw.Text("D I C O S M O", style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
+                      pw.Text("D I C O S M O", style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold, color: PdfColors.indigo900)),
                       pw.Text("RESUMEN GENERAL POR PRODUCTO", style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold)),
                     ],
                   ),
@@ -1962,7 +1688,7 @@ class _VistaResumenPorProductoState extends State<VistaResumenPorProducto> {
                     crossAxisAlignment: pw.CrossAxisAlignment.end,
                     children: [
                       pw.Text("Fecha: ${DateFormat('dd/MM/yyyy').format(DateTime.now())}", style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700)),
-                      pw.Text("Total Ítems: ${_resumenProductos.length}", style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700)),
+                      pw.Text("Total Ítems: ${resumen.length}", style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700)),
                     ],
                   ),
                 ],
@@ -1972,30 +1698,21 @@ class _VistaResumenPorProductoState extends State<VistaResumenPorProducto> {
                 headers: ['Producto / Descripción', 'Cantidad Total Solicitada'],
                 data: filas,
                 headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white, fontSize: 10),
-                headerDecoration: const pw.BoxDecoration(color: PdfColors.blue900),
+                headerDecoration: const pw.BoxDecoration(color: PdfColors.indigo900),
                 cellStyle: const pw.TextStyle(fontSize: 9),
                 cellPadding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                columnWidths: {
-                  0: const pw.FlexColumnWidth(3.0),
-                  1: const pw.FlexColumnWidth(1.0),
-                },
-                cellAlignments: {
-                  0: pw.Alignment.centerLeft,
-                  1: pw.Alignment.center,
-                },
+                columnWidths: {0: const pw.FlexColumnWidth(3.0), 1: const pw.FlexColumnWidth(1.0)},
+                cellAlignments: {0: pw.Alignment.centerLeft, 1: pw.Alignment.center},
               ),
               pw.SizedBox(height: 12),
               pw.Container(
                 padding: const pw.EdgeInsets.all(8),
-                decoration: pw.BoxDecoration(
-                  color: PdfColors.grey200,
-                  borderRadius: pw.BorderRadius.circular(4),
-                ),
+                decoration: pw.BoxDecoration(color: PdfColors.grey200, borderRadius: pw.BorderRadius.circular(4)),
                 child: pw.Row(
                   mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                   children: [
                     pw.Text("GRAN TOTAL DE UNIDADES:", style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
-                    pw.Text("$granTotalUnidades unidades", style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
+                    pw.Text("$granTotalUnidades unidades", style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold, color: PdfColors.indigo900)),
                   ],
                 ),
               ),
@@ -2006,22 +1723,10 @@ class _VistaResumenPorProductoState extends State<VistaResumenPorProducto> {
 
       final bytes = await pdf.save();
       String nombreArchivo = 'Resumen_Por_Producto_${DateTime.now().millisecondsSinceEpoch}.pdf';
-
       await Printing.sharePdf(bytes: bytes, filename: nombreArchivo);
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('PDF generado correctamente. Seleccione Guardar en Descargas.'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al exportar PDF: $e')),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error al exportar PDF: $e')));
       }
     }
   }
@@ -2031,856 +1736,131 @@ class _VistaResumenPorProductoState extends State<VistaResumenPorProducto> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Resumen por Producto'),
-        backgroundColor: Colors.blue.shade900,
+        backgroundColor: Colors.indigo,
         foregroundColor: Colors.white,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.picture_as_pdf),
-            tooltip: 'Exportar a PDF',
-            onPressed: _generarPdfResumen,
+          FutureBuilder<Map<String, int>>(
+            future: _calcularResumenProductos(),
+            builder: (context, snapshot) {
+              return IconButton(
+                icon: const Icon(Icons.picture_as_pdf),
+                tooltip: 'Exportar a PDF',
+                onPressed: () {
+                  if (snapshot.hasData) _generarPdfResumen(snapshot.data!);
+                },
+              );
+            },
           ),
         ],
       ),
-      body: _cargando
-          ? const Center(child: CircularProgressIndicator())
-          : _resumenProductos.isEmpty
-              ? const Center(child: Text('No hay productos registrados'))
-              : RefreshIndicator(
-                  onRefresh: _cargarResumen,
-                  child: ListView.builder(
-                    padding: const EdgeInsets.all(12),
-                    itemCount: _resumenProductos.length,
-                    itemBuilder: (context, index) {
-                      final item = _resumenProductos[index];
-                      final nombre = item['nombre_producto']?.toString() ?? 'Producto';
-                      final total = item['total_cantidad']?.toString() ?? '0';
+      body: FutureBuilder<Map<String, int>>(
+        future: _calcularResumenProductos(),
+        builder: (context, snapshot) {
+          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+          final resumen = snapshot.data!;
+          if (resumen.isEmpty) return const Center(child: Text('No hay productos registrados en pedidos'));
 
-                      return Card(
-                        margin: const EdgeInsets.symmetric(vertical: 4),
-                        child: ListTile(
-                          title: Text(
-                            nombre,
-                            style: const TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          trailing: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: Colors.blue.shade50,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              'Total: $total',
-                              style: TextStyle(
-                                color: Colors.blue.shade900,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ),
-                      );
-                    },
+          var listaOrdenada = resumen.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+
+          return ListView.builder(
+            padding: const EdgeInsets.all(12),
+            itemCount: listaOrdenada.length,
+            itemBuilder: (context, index) {
+              final item = listaOrdenada[index];
+              return Card(
+                margin: const EdgeInsets.symmetric(vertical: 4),
+                child: ListTile(
+                  title: Text(item.key, style: const TextStyle(fontWeight: FontWeight.bold)),
+                  trailing: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(8)),
+                    child: Text(
+                      'Total: ${item.value}',
+                      style: TextStyle(color: Colors.indigo.shade900, fontWeight: FontWeight.bold),
+                    ),
                   ),
                 ),
+              );
+            },
+          );
+        },
+      ),
     );
   }
 }
 
-// =============================================================================
-// MODELO AUXILIAR PARA AGRUPAR PEDIDOS POR SEMANA
-// =============================================================================
-
-class _SemanaModel {
-  final String key;
-  final DateTime fechaInicio;
-  final DateTime fechaFin;
-  final String etiqueta;
-  final List<int> idsPedidos;
-
-  _SemanaModel({
-    required this.key,
-    required this.fechaInicio,
-    required this.fechaFin,
-    required this.etiqueta,
-    required this.idsPedidos,
-  });
-}
-
-// =========================================================================
-// PESTAÑA: EXPORTAR REPORTES PDF (FILTRO POR SEMANA Y ENTREGAS)
-// =========================================================================
-
+// ==========================================
+// 7. PESTAÑA: EXPORTAR REPORTES PDF
+// ==========================================
 class VistaExportarPdf extends StatefulWidget {
-  const VistaExportarPdf({Key? key}) : super(key: key);
+  const VistaExportarPdf({super.key});
 
   @override
   State<VistaExportarPdf> createState() => _VistaExportarPdfState();
 }
 
 class _VistaExportarPdfState extends State<VistaExportarPdf> {
-  List<Map<String, dynamic>> _listaPedidos = [];
-  List<_SemanaModel> _listaSemanas = [];
-  bool _cargandoDatos = true;
+  String? pedidoFiltro;
 
-  // --- Estado para Reporte De Productos Por Semana ---
-  String? _semanaSeleccionadaKey;
-
-  // --- Estado para Gestión de Entregas y Reporte General ---
-  final Map<int, Map<String, dynamic>> _entregasProcesadas = {};
-  int? _idPedidoSeleccionadoEntrega;
-
-  final TextEditingController _montoEntregadoController = TextEditingController();
-  final TextEditingController _comentarioEntregaController = TextEditingController();
-
-  @override
-  void initState() {
-    super.initState();
-    _cargarPedidos();
-  }
-
-  @override
-  void dispose() {
-    _montoEntregadoController.dispose();
-    _comentarioEntregaController.dispose();
-    super.dispose();
-  }
-
-  DateTime _parseFecha(String? fechaStr) {
-    if (fechaStr == null || fechaStr.isEmpty) return DateTime.now();
-    try {
-      return DateTime.parse(fechaStr);
-    } catch (_) {
-      try {
-        return DateFormat('dd/MM/yyyy').parse(fechaStr);
-      } catch (_) {
-        return DateTime.now();
-      }
-    }
-  }
-
-  DateTime _inicioSemana(DateTime dt) {
-    DateTime d = DateTime(dt.year, dt.month, dt.day);
-    return d.subtract(Duration(days: d.weekday - 1));
-  }
-
-  DateTime _finSemana(DateTime inicio) {
-    return DateTime(inicio.year, inicio.month, inicio.day, 23, 59, 59).add(const Duration(days: 6));
-  }
-
-  Future<void> _cargarPedidos() async {
-    setState(() => _cargandoDatos = true);
-    try {
-      final db = await DatabaseHelper.instance.database;
-      final List<Map<String, dynamic>> pedidos = await db.rawQuery('''
-        SELECT 
-          p.id, 
-          p.numero_pedido, 
-          p.cliente, 
-          p.total, 
-          p.fecha,
-          c.codigo AS codigo_cliente
-        FROM pedidos p
-        LEFT JOIN clientes c ON p.cliente = c.nombre
-        ORDER BY p.id ASC
-      ''');
-
-      // Agrupar pedidos por semana
-      Map<String, _SemanaModel> mapaSemanas = {};
-
-      for (var p in pedidos) {
-        int id = p['id'] as int;
-        DateTime f = _parseFecha(p['fecha']?.toString());
-        DateTime inicio = _inicioSemana(f);
-        DateTime fin = _finSemana(inicio);
-
-        String key = DateFormat('yyyy-MM-dd').format(inicio);
-        String etiqueta = "Semana del ${DateFormat('dd/MM/yyyy').format(inicio)} al ${DateFormat('dd/MM/yyyy').format(fin)}";
-
-        if (!mapaSemanas.containsKey(key)) {
-          mapaSemanas[key] = _SemanaModel(
-            key: key,
-            fechaInicio: inicio,
-            fechaFin: fin,
-            etiqueta: etiqueta,
-            idsPedidos: [id],
-          );
-        } else {
-          mapaSemanas[key]!.idsPedidos.add(id);
-        }
-      }
-
-      List<_SemanaModel> listaSemanas = mapaSemanas.values.toList();
-      listaSemanas.sort((a, b) => b.fechaInicio.compareTo(a.fechaInicio));
-
-      setState(() {
-        _listaPedidos = pedidos;
-        _listaSemanas = listaSemanas;
-        _cargandoDatos = false;
-      });
-    } catch (e) {
-      setState(() => _cargandoDatos = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al cargar pedidos: $e')),
-        );
-      }
-    }
-  }
-
-  // --- LÓGICA DE GESTIÓN DE ENTREGAS ---
-  void _alSeleccionarPedidoEntrega(int? idPedido) {
-    if (idPedido == null) {
-      setState(() {
-        _idPedidoSeleccionadoEntrega = null;
-        _montoEntregadoController.clear();
-        _comentarioEntregaController.clear();
-      });
-      return;
-    }
-
-    final pedido = _listaPedidos.firstWhere(
-      (p) => p['id'] == idPedido,
-      orElse: () => {},
-    );
-
-    if (pedido.isNotEmpty) {
-      double total = (pedido['total'] as num?)?.toDouble() ?? 0.0;
-
-      if (_entregasProcesadas.containsKey(idPedido)) {
-        _montoEntregadoController.text =
-            _entregasProcesadas[idPedido]!['entregado'].toString();
-        _comentarioEntregaController.text =
-            _entregasProcesadas[idPedido]!['comentario'] ?? '';
-      } else {
-        _montoEntregadoController.text = total.toStringAsFixed(2);
-        _comentarioEntregaController.clear();
-      }
-
-      setState(() {
-        _idPedidoSeleccionadoEntrega = idPedido;
-      });
-    }
-  }
-
-  void _guardarDatosEntrega() {
-    if (_idPedidoSeleccionadoEntrega == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Por favor, seleccione un pedido')),
-      );
-      return;
-    }
-
-    double valEntregado = double.tryParse(_montoEntregadoController.text) ?? 0.0;
-    String comentario = _comentarioEntregaController.text.trim();
-
-    setState(() {
-      _entregasProcesadas[_idPedidoSeleccionadoEntrega!] = {
-        'entregado': valEntregado,
-        'comentario': comentario,
-      };
-      _idPedidoSeleccionadoEntrega = null;
-      _montoEntregadoController.clear();
-      _comentarioEntregaController.clear();
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('¡Datos del pedido guardados exitosamente!'),
-        backgroundColor: Colors.green,
-      ),
-    );
-  }
-
-  // COMPARTIR / GUARDAR PDF EN DISPOSITIVO
-  Future<void> _guardarYCompartirPdf(pw.Document pdf, String nombreArchivo) async {
-    try {
-      final bytes = await pdf.save();
-      final outputDir = await getTemporaryDirectory();
-      final file = File('${outputDir.path}/$nombreArchivo');
-      await file.writeAsBytes(bytes);
-
-      await Printing.sharePdf(bytes: bytes, filename: nombreArchivo);
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error al exportar PDF: $e')),
-      );
-    }
-  }
-
-  // 1. REPORTE DE PRODUCTOS POR SEMANA (PDF)
-  Future<void> _generarPdfReporteProductosPorSemana() async {
-    if (_semanaSeleccionadaKey == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Seleccione una semana para generar el reporte')),
-      );
-      return;
-    }
-
-    final semana = _listaSemanas.firstWhere(
-      (s) => s.key == _semanaSeleccionadaKey,
-      orElse: () => _SemanaModel(
-        key: '',
-        fechaInicio: DateTime.now(),
-        fechaFin: DateTime.now(),
-        etiqueta: '',
-        idsPedidos: [],
-      ),
-    );
-
-    if (semana.idsPedidos.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No hay pedidos registrados en esta semana')),
-      );
-      return;
-    }
-
+  Future<void> _generarYMostrarPdf(BuildContext context) async {
+    final pdf = pw.Document();
     final db = await DatabaseHelper.instance.database;
-    String placeholders = List.filled(semana.idsPedidos.length, '?').join(',');
-    
-    final List<Map<String, dynamic>> detalles = await db.rawQuery('''
-      SELECT 
-        nombre_producto, 
-        SUM(cantidad) AS total_cantidad,
-        SUM(subtotal) AS total_subtotal
-      FROM detalle_pedidos
-      WHERE pedido_id IN ($placeholders)
-      GROUP BY nombre_producto
-      ORDER BY total_cantidad DESC
-    ''', semana.idsPedidos);
+    List<Map<String, dynamic>> pedidos = await db.query('pedidos');
 
-    if (!mounted) return;
-
-    double totalGeneralMonto = 0.0;
-    int totalGeneralCantidad = 0;
-    List<List<String>> filasTabla = [];
-
-    for (var d in detalles) {
-      String prod = d['nombre_producto']?.toString() ?? 'Producto';
-      int cant = (d['total_cantidad'] as num?)?.toInt() ?? 0;
-      double subtotal = (d['total_subtotal'] as num?)?.toDouble() ?? 0.0;
-
-      totalGeneralCantidad += cant;
-      totalGeneralMonto += subtotal;
-
-      filasTabla.add([
-        prod,
-        cant.toString(),
-        'L. ${subtotal.toStringAsFixed(2)}',
-      ]);
+    if (pedidoFiltro != null && pedidoFiltro!.isNotEmpty) {
+      pedidos = pedidos.where((p) => p['numero_pedido'] == pedidoFiltro).toList();
     }
 
-    final pdf = pw.Document();
-
     pdf.addPage(
-      pw.MultiPage(
+      pw.Page(
         pageFormat: PdfPageFormat.letter,
-        margin: const pw.EdgeInsets.all(24),
         build: (pw.Context context) {
-          return [
-            pw.Row(
-              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-              children: [
-                pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.start,
-                  children: [
-                    pw.Text("D I C O S M O", style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
-                    pw.Text("REPORTE DE PRODUCTOS POR SEMANA", style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold)),
-                  ],
-                ),
-                pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.end,
-                  children: [
-                    pw.Text("Fecha Gen.: ${DateFormat('dd/MM/yyyy').format(DateTime.now())}", style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700)),
-                    pw.Text("Pedidos en Semana: ${semana.idsPedidos.length}", style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700)),
-                  ],
-                ),
-              ],
-            ),
-            pw.SizedBox(height: 10),
-            pw.Container(
-              padding: const pw.EdgeInsets.all(8),
-              decoration: pw.BoxDecoration(
-                color: PdfColors.grey200,
-                borderRadius: pw.BorderRadius.circular(4),
+          return pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Text('Reporte de Ventas - App Ventas Hob', style: pw.TextStyle(fontSize: 22, fontWeight: pw.FontWeight.bold)),
+              pw.SizedBox(height: 20),
+              pw.Table.fromTextArray(
+                headers: ['Pedido', 'Cliente', 'Productos', 'Fecha', 'Total'],
+                data: pedidos.map((p) => [
+                  p['numero_pedido'],
+                  p['cliente'],
+                  p['productos_json'],
+                  p['fecha'],
+                  'L ${p['total'].toStringAsFixed(2)}',
+                ]).toList(),
               ),
-              child: pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                children: [
-                  pw.Text("Rango: ${semana.etiqueta}", style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
-                  pw.Text("Monto Total: L. ${totalGeneralMonto.toStringAsFixed(2)}", style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900)),
-                ],
-              ),
-            ),
-            pw.SizedBox(height: 12),
-            pw.Table.fromTextArray(
-              headers: ['Producto / Descripción', 'Cantidad Total', 'Monto Total'],
-              data: filasTabla,
-              headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white, fontSize: 9),
-              headerDecoration: const pw.BoxDecoration(color: PdfColors.blue900),
-              cellStyle: const pw.TextStyle(fontSize: 8),
-              cellPadding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-              columnWidths: {
-                0: const pw.FlexColumnWidth(3.0),
-                1: const pw.FlexColumnWidth(1.2),
-                2: const pw.FlexColumnWidth(1.5),
-              },
-              cellAlignments: {
-                0: pw.Alignment.centerLeft,
-                1: pw.Alignment.center,
-                2: pw.Alignment.centerRight,
-              },
-            ),
-            pw.SizedBox(height: 12),
-            pw.Align(
-              alignment: pw.Alignment.centerRight,
-              child: pw.Text(
-                "Total Unidades: $totalGeneralCantidad | Total Valor: L. ${totalGeneralMonto.toStringAsFixed(2)}",
-                style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900),
-              ),
-            ),
-          ];
+            ],
+          );
         },
       ),
     );
 
-    String nombre = 'Reporte_Productos_${semana.key}_${DateTime.now().millisecondsSinceEpoch}.pdf';
-    await _guardarYCompartirPdf(pdf, nombre);
-  }
-
-  // 2. REPORTE GENERAL POR CLIENTE (PDF CONSOLIDADOR)
-  Future<void> _generarPdfReporteGeneralPorCliente() async {
-    if (_listaPedidos.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No hay pedidos registrados para generar el reporte')),
-      );
-      return;
-    }
-
-    List<List<String>> filasReporte = [];
-    double sumaTotalPedidos = 0.0;
-    double sumaTotalEntregado = 0.0;
-
-    for (var p in _listaPedidos) {
-      int idPedido = p['id'] as int;
-      String nombreCliente = p['cliente']?.toString() ?? '';
-      String codigoCliente = p['codigo_cliente']?.toString() ?? '';
-      String clienteConCodigo = codigoCliente.isNotEmpty ? '[$codigoCliente] $nombreCliente' : nombreCliente;
-
-      String numPedRaw = p['numero_pedido']?.toString() ?? '';
-      if (numPedRaw.isEmpty) {
-        numPedRaw = 'Pedido #$idPedido';
-      } else if (!numPedRaw.toLowerCase().contains('pedido')) {
-        numPedRaw = 'Pedido $numPedRaw';
-      }
-
-      double totalPedido = (p['total'] as num?)?.toDouble() ?? 0.0;
-      sumaTotalPedidos += totalPedido;
-
-      double valEntregado = totalPedido;
-      String comentario = 'Entregado';
-
-      if (_entregasProcesadas.containsKey(idPedido)) {
-        valEntregado = _entregasProcesadas[idPedido]!['entregado'] ?? totalPedido;
-        comentario = _entregasProcesadas[idPedido]!['comentario'] ?? '';
-      }
-
-      sumaTotalEntregado += valEntregado;
-
-      filasReporte.add([
-        numPedRaw,
-        clienteConCodigo,
-        'L. ${totalPedido.toStringAsFixed(2)}',
-        'L. ${valEntregado.toStringAsFixed(2)}',
-        comentario.isEmpty ? '-' : comentario,
-      ]);
-    }
-
-    double diferenciaTotal = sumaTotalPedidos - sumaTotalEntregado;
-    final pdf = pw.Document();
-
-    pdf.addPage(
-      pw.MultiPage(
-        pageFormat: PdfPageFormat.letter,
-        margin: const pw.EdgeInsets.all(24),
-        build: (pw.Context context) {
-          return [
-            pw.Row(
-              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-              children: [
-                pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.start,
-                  children: [
-                    pw.Text(
-                      "D I C O S M O",
-                      style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold, color: PdfColors.blue900),
-                    ),
-                    pw.Text(
-                      "PRODUCTOS CHAMER MEDICAMENTOS UTILES ESCOLARES NOVEDADES Y MAS",
-                      style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey700),
-                    ),
-                  ],
-                ),
-                pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.end,
-                  children: [
-                    pw.Text(
-                      "REPORTE GRAL POR CLIENTE",
-                      style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold),
-                    ),
-                    pw.Text(
-                      "Fecha: ${DateFormat('dd/MM/yy').format(DateTime.now())}",
-                      style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey600),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            pw.SizedBox(height: 8),
-
-            pw.Row(
-              mainAxisAlignment: pw.MainAxisAlignment.end,
-              children: [
-                _buildMetricBadge('Total Pedido:', sumaTotalPedidos),
-                pw.SizedBox(width: 6),
-                _buildMetricBadge('Total Entregado:', sumaTotalEntregado),
-                pw.SizedBox(width: 6),
-                _buildMetricBadge('Diferencia:', diferenciaTotal),
-              ],
-            ),
-            pw.SizedBox(height: 8),
-            pw.Divider(thickness: 1, color: PdfColors.blue900),
-            pw.SizedBox(height: 8),
-
-            pw.Table.fromTextArray(
-              headers: ['Pedido #', 'Cliente', 'Total Pedido', 'Total Entregado', 'Comentario'],
-              data: filasReporte,
-              headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white, fontSize: 9),
-              headerDecoration: const pw.BoxDecoration(color: PdfColors.blue900),
-              cellStyle: const pw.TextStyle(fontSize: 8),
-              cellPadding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 3),
-              columnWidths: {
-                0: const pw.FlexColumnWidth(1.2),
-                1: const pw.FlexColumnWidth(2.5),
-                2: const pw.FlexColumnWidth(1.4),
-                3: const pw.FlexColumnWidth(1.4),
-                4: const pw.FlexColumnWidth(2.0),
-              },
-              cellAlignments: {
-                0: pw.Alignment.center,
-                1: pw.Alignment.centerLeft,
-                2: pw.Alignment.centerRight,
-                3: pw.Alignment.centerRight,
-                4: pw.Alignment.centerLeft,
-              },
-            ),
-          ];
-        },
-      ),
-    );
-
-    String nombre = 'Reporte_General_Por_Cliente_${DateTime.now().millisecondsSinceEpoch}.pdf';
-    await _guardarYCompartirPdf(pdf, nombre);
-  }
-
-  pw.Widget _buildMetricBadge(String title, double amount) {
-    return pw.Row(
-      children: [
-        pw.Text(title, style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
-        pw.SizedBox(width: 2),
-        pw.Container(
-          padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-          decoration: pw.BoxDecoration(
-            border: pw.Border.all(color: PdfColors.grey700),
-            borderRadius: pw.BorderRadius.circular(4),
-          ),
-          child: pw.Text('L. ${amount.toStringAsFixed(2)}', style: pw.TextStyle(fontSize: 8, fontWeight: pw.FontWeight.bold)),
-        ),
-      ],
-    );
+    await Printing.layoutPdf(onLayout: (PdfPageFormat format) async => pdf.save());
   }
 
   @override
   Widget build(BuildContext context) {
-    List<Map<String, dynamic>> pedidosFaltantes = _listaPedidos.where((p) {
-      int id = p['id'] as int;
-      return !_entregasProcesadas.containsKey(id) || id == _idPedidoSeleccionadoEntrega;
-    }).toList();
-
-    Map<String, dynamic> pedidoActualEntrega = {};
-    if (_idPedidoSeleccionadoEntrega != null) {
-      pedidoActualEntrega = _listaPedidos.firstWhere(
-        (p) => p['id'] == _idPedidoSeleccionadoEntrega,
-        orElse: () => {},
-      );
-    }
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Exportar Reportes PDF'),
-        backgroundColor: Colors.blue.shade900,
-        foregroundColor: Colors.white,
+    return Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Exportar Pedidos a PDF (Tamaño Carta)', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 20),
+          TextField(
+            decoration: const InputDecoration(labelText: 'Filtrar por Número de Pedido (Ej. Pedido #01)'),
+            onChanged: (val) => setState(() => pedidoFiltro = val),
+          ),
+          const SizedBox(height: 30),
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo, foregroundColor: Colors.white),
+            onPressed: () => _generarYMostrarPdf(context),
+            icon: const Icon(Icons.picture_as_pdf),
+            label: const Text('Generar e Imprimir PDF'),
+          ),
+        ],
       ),
-      body: _cargandoDatos
-          ? const Center(child: CircularProgressIndicator())
-          : ListView(
-              padding: const EdgeInsets.all(16.0),
-              children: [
-                // -------------------------------------------------------------
-                // CARD 1: REPORTE DE PRODUCTOS POR SEMANA
-                // -------------------------------------------------------------
-                Card(
-                  elevation: 3,
-                  margin: const EdgeInsets.only(bottom: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Reporte De Productos Por Semana',
-                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                        ),
-                        const SizedBox(height: 6),
-                        const Text(
-                          'Seleccione una semana para exportar el consolidado de productos con sus cantidades totales.',
-                          style: TextStyle(color: Colors.grey, fontSize: 13),
-                        ),
-                        const SizedBox(height: 16),
-
-                        DropdownButtonFormField<String>(
-                          value: _semanaSeleccionadaKey,
-                          isExpanded: true,
-                          decoration: const InputDecoration(
-                            labelText: 'Seleccionar Semana',
-                            border: OutlineInputBorder(),
-                            contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                          ),
-                          hint: Text(
-                            _listaSemanas.isEmpty
-                                ? 'No hay semanas con pedidos'
-                                : 'Elija una semana de la lista',
-                          ),
-                          items: _listaSemanas.map((semana) {
-                            return DropdownMenuItem<String>(
-                              value: semana.key,
-                              child: Text(
-                                '${semana.etiqueta} (${semana.idsPedidos.length} pedidos)',
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            );
-                          }).toList(),
-                          onChanged: (val) {
-                            setState(() {
-                              _semanaSeleccionadaKey = val;
-                            });
-                          },
-                        ),
-                        const SizedBox(height: 16),
-
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton.icon(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.blue.shade900,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                            ),
-                            onPressed: _generarPdfReporteProductosPorSemana,
-                            icon: const Icon(Icons.picture_as_pdf),
-                            label: const Text('Generar Reporte por Semana'),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-
-                // -------------------------------------------------------------
-                // CARD 2: GESTIÓN DE ENTREGAS Y REPORTE GENERAL POR CLIENTE
-                // -------------------------------------------------------------
-                Card(
-                  elevation: 3,
-                  margin: const EdgeInsets.only(bottom: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text(
-                              'Reporte General por Cliente',
-                              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: Colors.blue.shade50,
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Text(
-                                'Procesados: ${_entregasProcesadas.length} / ${_listaPedidos.length}',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.blue.shade900,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 6),
-                        const Text(
-                          'Seleccione los pedidos faltantes para actualizar sus valores de entrega y comentarios antes de generar el reporte consolidado.',
-                          style: TextStyle(color: Colors.grey, fontSize: 13),
-                        ),
-                        const SizedBox(height: 16),
-
-                        // Selector de pedidos faltantes de entrega
-                        DropdownButtonFormField<int>(
-                          value: _idPedidoSeleccionadoEntrega,
-                          isExpanded: true,
-                          decoration: const InputDecoration(
-                            labelText: 'Pedidos Faltantes de Entrega',
-                            border: OutlineInputBorder(),
-                            contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                          ),
-                          hint: Text(
-                            pedidosFaltantes.isEmpty
-                                ? '¡Todos los pedidos han sido procesados!'
-                                : 'Seleccione un pedido pendiente',
-                          ),
-                          items: pedidosFaltantes.map((p) {
-                            int id = p['id'] as int;
-                            String numPed = p['numero_pedido']?.toString() ?? 'Pedido #$id';
-                            String cliente = p['cliente']?.toString() ?? '';
-                            String cod = p['codigo_cliente']?.toString() ?? '';
-                            String labelCliente = cod.isNotEmpty ? '[$cod] $cliente' : cliente;
-
-                            return DropdownMenuItem<int>(
-                              value: id,
-                              child: Text(
-                                '$numPed - $labelCliente',
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            );
-                          }).toList(),
-                          onChanged: _alSeleccionarPedidoEntrega,
-                        ),
-                        const SizedBox(height: 16),
-
-                        // VISTA DE LECTURA DE DATOS + CAJAS EDITABLES
-                        if (pedidoActualEntrega.isNotEmpty) ...[
-                          Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: Colors.grey.shade100,
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: Colors.grey.shade300),
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Datos Visuales del Pedido (Solo Lectura):',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.grey,
-                                  ),
-                                ),
-                                const SizedBox(height: 6),
-                                Text(
-                                  '• Pedido #: ${pedidoActualEntrega['numero_pedido'] ?? "Pedido #${pedidoActualEntrega['id']}"}',
-                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                                ),
-                                Text(
-                                  '• Cliente: ${pedidoActualEntrega['codigo_cliente'] != null && pedidoActualEntrega['codigo_cliente'].toString().isNotEmpty ? "[${pedidoActualEntrega['codigo_cliente']}] " : ""}${pedidoActualEntrega['cliente'] ?? ""}',
-                                  style: const TextStyle(fontSize: 14),
-                                ),
-                                Text(
-                                  '• Valor Total del Pedido: L. ${((pedidoActualEntrega['total'] as num?)?.toDouble() ?? 0.0).toStringAsFixed(2)}',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.blue.shade900,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-
-                          // CAJA EDITABLE: VALOR ENTREGADO
-                          TextField(
-                            controller: _montoEntregadoController,
-                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                            decoration: const InputDecoration(
-                              labelText: 'Valor Total Entregado (L.)',
-                              border: OutlineInputBorder(),
-                              prefixIcon: Icon(Icons.attach_money),
-                              helperText: 'Modifique si el cliente entregó un monto distinto',
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-
-                          // CAJA EDITABLE: COMENTARIOS
-                          TextField(
-                            controller: _comentarioEntregaController,
-                            maxLines: 2,
-                            decoration: const InputDecoration(
-                              labelText: 'Comentario / Novedad de Entrega',
-                              border: OutlineInputBorder(),
-                              prefixIcon: Icon(Icons.comment),
-                              hintText: 'Ej: Entregado incompleto, pago pendiente, etc.',
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-
-                          // BOTÓN GUARDAR DATOS DEL PEDIDO
-                          SizedBox(
-                            width: double.infinity,
-                            child: ElevatedButton.icon(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.green.shade800,
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(vertical: 12),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                              ),
-                              onPressed: _guardarDatosEntrega,
-                              icon: const Icon(Icons.save),
-                              label: const Text('Guardar Datos del Pedido'),
-                            ),
-                          ),
-                          const Divider(height: 32, thickness: 1),
-                        ],
-
-                        // BOTÓN REPORTE GENERAL CONSOLIDADOR
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton.icon(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.blue.shade900,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(vertical: 12),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                            ),
-                            onPressed: _generarPdfReporteGeneralPorCliente,
-                            icon: const Icon(Icons.picture_as_pdf),
-                            label: const Text('Generar Reporte General Por Cliente'),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
     );
   }
 }
