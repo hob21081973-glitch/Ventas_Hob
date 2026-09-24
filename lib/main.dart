@@ -876,7 +876,7 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
-                        mainAxisAlignment: MainAxisAlignment.between,
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Expanded(
                             child: Text(
@@ -940,7 +940,7 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
 
                       const Divider(height: 12),
                       Row(
-                        mainAxisAlignment: MainAxisAlignment.between,
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
                             'Total: L ${(p['total'] as num).toStringAsFixed(2)}', 
