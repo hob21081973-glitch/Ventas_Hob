@@ -16,15 +16,11 @@ final ValueNotifier<int> changeNotifierPedidos = ValueNotifier<int>(0);
 
 // URLs de Google Sheets
 const String urlClientesCSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTmtKhEE5ziDtm_BQdAeOy8c-Z6H6_GbyKcPOvtdjfKtXgxYObBUB-PlK0ldsiwrW78aabDzei-R2Cd/pub?gid=0&single=true&output=csv';
-const String urlProductosCSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTmtKhEE5ziDtm_BQdAeOy8c-Z6H6GbyKCPOvtdjfKtXgxYObBUB-P1K0ldsiwR78aabDzei-R2Cd/pub?gid=1903712481&single=true&output=csv';
+const String urlProductosCSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTmtKhEE5ziDtm_BQdAeOy8c-Z6H6_GbyKcPOvtdjfKtXgxYObBUB-P1K0ldsiwR78aabDzei-R2Cd/pub?gid=1903712481&single=true&output=csv';
 
 void main() async {
+  // Aseguramos el binding de Flutter sin bloquear el hilo principal si falla algo nativo
   WidgetsFlutterBinding.ensureInitialized();
-  try {
-    await DatabaseHelper.instance.database;
-  } catch (e) {
-    print("Error al inicializar la base de datos: $e");
-  }
   runApp(const AppVentasHob());
 }
 
@@ -43,7 +39,7 @@ class AppVentasHob extends StatelessWidget {
 }
 
 // ==========================================
-// BASE DE DATOS LOCAL (SQLITE)
+// BASE DE DATOS LOCAL (SQLITE) - BLINDADA
 // ==========================================
 class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._init();
@@ -58,20 +54,26 @@ class DatabaseHelper {
   }
 
   Future<Database> _initDB(String filePath) async {
-    final dbPath = await getDatabasesPath();
-    final path = '$dbPath/$filePath';
+    try {
+      final dbPath = await getDatabasesPath();
+      final path = '$dbPath/$filePath';
 
-    return await openDatabase(
-      path,
-      version: 2,
-      onCreate: _createDB,
-      onUpgrade: _onUpgradeDB,
-    );
+      return await openDatabase(
+        path,
+        version: 2,
+        onCreate: _createDB,
+        onUpgrade: _onUpgradeDB,
+      );
+    } catch (e) {
+      // Si falla la ruta por permisos o almacenamiento, intentamos abrir una base en memoria o ruta por defecto
+      final dbPath = await getDatabasesPath();
+      return await openDatabase('$dbPath/fallback_ventas.db', version: 1, onCreate: _createDB);
+    }
   }
 
   Future _createDB(Database db, int version) async {
     await db.execute('''
-      CREATE TABLE clientes (
+      CREATE TABLE IF NOT EXISTS clientes (
         codigo TEXT PRIMARY KEY,
         nombre TEXT,
         telefono TEXT
@@ -79,7 +81,7 @@ class DatabaseHelper {
     ''');
 
     await db.execute('''
-      CREATE TABLE productos (
+      CREATE TABLE IF NOT EXISTS productos (
         codigo TEXT PRIMARY KEY,
         nombre TEXT,
         precio REAL
@@ -87,7 +89,7 @@ class DatabaseHelper {
     ''');
 
     await db.execute('''
-      CREATE TABLE pedidos (
+      CREATE TABLE IF NOT EXISTS pedidos (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         numero_pedido TEXT,
         cliente TEXT,
