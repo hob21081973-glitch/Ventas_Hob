@@ -1206,7 +1206,7 @@ class _VistaResumenProductosState extends State<VistaResumenProductos> {
                 padding: const EdgeInsets.all(16),
                 children: [
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween, // CORREGIDO AQUÍ
                     children: [
                       const Text('Ranking de Productos', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                       ToggleButtons(
@@ -1251,7 +1251,6 @@ class _VistaResumenProductosState extends State<VistaResumenProductos> {
     );
   }
 }
-
 // ==========================================
 // 7. EXPORTAR A PDF (CON REPORTES Y GESTIÓN DE INCIDENCIAS)
 // ==========================================
@@ -1445,6 +1444,7 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
                   const Text('Filtra por fechas o déjalas vacías para exportar todo.', style: TextStyle(fontSize: 13, color: Colors.grey)),
                   const SizedBox(height: 12),
                   Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween, // CORREGIDO AQUÍ
                     children: [
                       Expanded(
                         child: OutlinedButton.icon(
