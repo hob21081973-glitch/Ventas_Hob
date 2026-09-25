@@ -130,7 +130,7 @@ class DatabaseHelper {
 }
 
 // ==========================================
-// MENÚ PRINCIPAL CON PESTAÑAS (Manteniendo Estado Global)
+// MENÚ PRINCIPAL CON ESTADO GLOBAL COMPARTIDO
 // ==========================================
 class MenuPrincipal extends StatefulWidget {
   const MenuPrincipal({super.key});
@@ -142,19 +142,20 @@ class MenuPrincipal extends StatefulWidget {
 class MenuPrincipalState extends State<MenuPrincipal> {
   int _indiceActual = 0;
   
+  // Variables globales de control para la edición de pedidos
   int? editandoPedidoId;
   String? editandoNumeroPedidoFijo;
   String? clienteEnCurso;
   List<Map<String, dynamic>> productosEnCurso = [];
 
-  // Método clave para pasar datos del historial a la pestaña Crear
+  // Método que recibe el pedido desde el Historial y lo inyecta en la pestaña Crear
   void cargarPedidoParaEditar(int id, String numeroPedido, String cliente, List<Map<String, dynamic>> productos) {
     setState(() {
       editandoPedidoId = id;
       editandoNumeroPedidoFijo = numeroPedido;
       clienteEnCurso = cliente;
       productosEnCurso = List.from(productos);
-      _indiceActual = 0; // Cambia automáticamente a la pestaña "Crear"
+      _indiceActual = 0; // Salta automáticamente a la pestaña Crear
     });
   }
 
@@ -260,6 +261,7 @@ class _VistaCrearPedidoState extends State<VistaCrearPedido> {
 
     final db = await DatabaseHelper.instance.database;
     
+    // Si está editando, actualiza el registro existente; de lo contrario, inserta uno nuevo
     if (mainState.editandoPedidoId != null) {
       await db.update('pedidos', {
         'numero_pedido': numPedidoStr,
@@ -1091,7 +1093,7 @@ class _VistaGestionProductosState extends State<VistaGestionProductos> {
 
 // ==========================================
 // 5. RESUMEN GENERAL
-  // ==========================================
+// ==========================================
 class VistaResumenGeneral extends StatelessWidget {
   const VistaResumenGeneral({super.key});
 
@@ -1142,7 +1144,7 @@ class VistaResumenGeneral extends StatelessWidget {
 }
 
 // ==========================================
-// 6. RESUMEN POR PRODUCTO (Corregido sin duplicidad)
+// 6. RESUMEN POR PRODUCTO (Corregido y sin duplicar)
 // ==========================================
 class VistaResumenProductos extends StatefulWidget {
   const VistaResumenProductos({super.key});
@@ -1185,7 +1187,7 @@ class _VistaResumenProductosState extends State<VistaResumenProductos> {
                     String nombreProdOriginal = partes[0].trim();
                     int cant = int.parse(partes[1].replaceAll(')', '').trim());
                     
-                    // CORRECCIÓN: Limpiamos los corchetes de comentarios para agrupar el producto real de forma limpia
+                    // Limpieza estricta de corchetes para evitar duplicados en el reporte
                     String nombreLimpio = nombreProdOriginal;
                     if (nombreProdOriginal.contains('[')) {
                       nombreLimpio = nombreProdOriginal.substring(0, nombreProdOriginal.lastIndexOf('[')).trim();
@@ -1254,7 +1256,7 @@ class _VistaResumenProductosState extends State<VistaResumenProductos> {
 }
 
 // ==========================================
-// 7. EXPORTAR A PDF (CON REPORTES Y GESTIÓN DE INCIDENCIAS)
+// 7. EXPORTAR A PDF (REPORTES E INCIDENCIAS)
 // ==========================================
 class VistaExportarPdf extends StatefulWidget {
   const VistaExportarPdf({super.key});
