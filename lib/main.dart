@@ -1351,7 +1351,6 @@ class _VistaResumenProductosState extends State<VistaResumenProductos> {
       for (var item in items) {
         if (item.trim().isEmpty) continue;
         try {
-          // Extracción limpia y precisa evitando duplicación de cantidades
           int idxCant = item.lastIndexOf('(x');
           if (idxCant == -1) continue;
           
@@ -1363,8 +1362,8 @@ class _VistaResumenProductosState extends State<VistaResumenProductos> {
           if (nombreBruto.contains('[')) {
             nombreLimpio = nombreBruto.substring(0, nombreBruto.lastIndexOf('[')).trim();
           } else if (nombreBruto.contains('(')) {
-        nombreLimpio = nombreBruto.substring(0, nombreBruto.lastIndexOf('(')).trim();
-      }
+            nombreLimpio = nombreBruto.substring(0, nombreBruto.lastIndexOf('(')).trim();
+          }
 
           conteoUnidades[nombreLimpio] = (conteoUnidades[nombreLimpio] ?? 0) + cant;
           double precioUnit = preciosMap[nombreLimpio] ?? 0.0;
@@ -1423,95 +1422,99 @@ class _VistaResumenProductosState extends State<VistaResumenProductos> {
           ),
         ],
       ),
-      body: FutureBuilder<List<Map<String, dynamic>>>(
-        future: DatabaseHelper.instance.database.then((db) => db.query('pedidos')),
+      // CORRECCIÓN: Usamos Future.wait para consultar ambas tablas UNA sola vez y evitar duplicidad
+      body: FutureBuilder<List<List<Map<String, dynamic>>>>(
+        future: Future.wait([
+          DatabaseHelper.instance.database.then((db) => db.query('pedidos')),
+          DatabaseHelper.instance.database.then((db) => db.query('productos')),
+        ]),
         builder: (context, snapshot) {
           if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-          final pedidos = snapshot.data!;
+          
+          final pedidos = snapshot.data![0];
+          final productosDb = snapshot.data![1];
+
+          Map<String, double> preciosMap = {};
+          for (var prod in productosDb) {
+            preciosMap[prod['nombre'].toString().trim()] = (prod['precio'] as num).toDouble();
+          }
+
           Map<String, int> conteoUnidades = {};
           Map<String, double> valorVentas = {};
-          return FutureBuilder<List<Map<String, dynamic>>>(
-            future: DatabaseHelper.instance.database.then((db) => db.query('productos')),
-            builder: (context, prodSnapshot) {
-              final productosDb = prodSnapshot.data ?? [];
-              Map<String, double> preciosMap = {};
-              for (var prod in productosDb) {
-                preciosMap[prod['nombre'].toString().trim()] = (prod['precio'] as num).toDouble();
-              }
-              for (var p in pedidos) {
-                String prodString = p['productos_json'].toString();
-                List<String> items = prodString.split(';');
-                for (var item in items) {
-                  if(item.trim().isEmpty) continue;
-                  try {
-                    // Extracción exacta y limpia sin duplicación acumulativa
-                    int idxCant = item.lastIndexOf('(x');
-                    if (idxCant == -1) continue;
 
-                    String nombreBruto = item.substring(0, idxCant).trim();
-                    String cantStr = item.substring(idxCant + 2).replaceAll(')', '').trim();
-                    int cant = int.parse(cantStr);
-                    
-                    String nombreLimpio = nombreBruto;
-                    if (nombreBruto.contains('[')) {
-                      nombreLimpio = nombreBruto.substring(0, nombreBruto.lastIndexOf('[')).trim();
-                    } else if (nombreBruto.contains('(')) {
-                    nombreLimpio = nombreBruto.substring(0, nombreBruto.lastIndexOf('(')).trim();
-                  }
+          for (var p in pedidos) {
+            String prodString = p['productos_json'].toString();
+            List<String> items = prodString.split(';');
+            for (var item in items) {
+              if (item.trim().isEmpty) continue;
+              try {
+                int idxCant = item.lastIndexOf('(x');
+                if (idxCant == -1) continue;
 
-                    conteoUnidades[nombreLimpio] = (conteoUnidades[nombreLimpio] ?? 0) + cant;
-                    double precioUnit = preciosMap[nombreLimpio] ?? 0.0;
-                    valorVentas[nombreLimpio] = (valorVentas[nombreLimpio] ?? 0.0) + (precioUnit * cant);
-                  } catch (_) {}
+                String nombreBruto = item.substring(0, idxCant).trim();
+                String cantStr = item.substring(idxCant + 2).replaceAll(')', '').trim();
+                int cant = int.parse(cantStr);
+                
+                String nombreLimpio = nombreBruto;
+                if (nombreBruto.contains('[')) {
+                  nombreLimpio = nombreBruto.substring(0, nombreBruto.lastIndexOf('[')).trim();
+                } else if (nombreBruto.contains('(')) {
+                  nombreLimpio = nombreBruto.substring(0, nombreBruto.lastIndexOf('(')).trim();
                 }
-              }
-              var listaOrdenadaUnidades = conteoUnidades.entries.toList()
-                ..sort((a, b) => b.value.compareTo(a.value));
-              var listaOrdenadaValor = valorVentas.entries.toList()
-                ..sort((a, b) => b.value.compareTo(a.value));
-              return ListView(
-                padding: const EdgeInsets.all(16),
+
+                conteoUnidades[nombreLimpio] = (conteoUnidades[nombreLimpio] ?? 0) + cant;
+                double precioUnit = preciosMap[nombreLimpio] ?? 0.0;
+                valorVentas[nombreLimpio] = (valorVentas[nombreLimpio] ?? 0.0) + (precioUnit * cant);
+              } catch (_) {}
+            }
+          }
+
+          var listaOrdenadaUnidades = conteoUnidades.entries.toList()
+            ..sort((a, b) => b.value.compareTo(a.value));
+          var listaOrdenadaValor = valorVentas.entries.toList()
+            ..sort((a, b) => b.value.compareTo(a.value));
+
+          return ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text('Ranking de Productos', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                      ToggleButtons(
-                        isSelected: [tipoVista == 'unidades', tipoVista == 'valor'],
-                        onPressed: (index) {
-                          setState(() {
-                            tipoVista = index == 0 ? 'unidades' : 'valor';
-                          });
-                        },
-                        constraints: const BoxConstraints(minHeight: 30, minWidth: 80),
-                        children: const [
-                          Text('Unidades', style: TextStyle(fontSize: 12)),
-                          Text('Valor (L)', style: TextStyle(fontSize: 12)),
-                        ],
-                      ),
+                  const Text('Ranking de Productos', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  ToggleButtons(
+                    isSelected: [tipoVista == 'unidades', tipoVista == 'valor'],
+                    onPressed: (index) {
+                      setState(() {
+                        tipoVista = index == 0 ? 'unidades' : 'valor';
+                      });
+                    },
+                    constraints: const BoxConstraints(minHeight: 30, minWidth: 80),
+                    children: const [
+                      Text('Unidades', style: TextStyle(fontSize: 12)),
+                      Text('Valor (L)', style: TextStyle(fontSize: 12)),
                     ],
                   ),
-                  const Divider(),
-                  if (tipoVista == 'unidades') ...[
-                    if (listaOrdenadaUnidades.isEmpty)
-                      const Center(child: Text('No hay datos'))
-                    else
-                      ...listaOrdenadaUnidades.map((e) => ListTile(
-                        title: Text(e.key),
-                        trailing: Text('Unidades: ${e.value}', style: const TextStyle(fontWeight: FontWeight.bold)),
-                      )),
-                  ] else ...[
-                    if (listaOrdenadaValor.isEmpty)
-                      const Center(child: Text('No hay datos'))
-                    else
-                      ...listaOrdenadaValor.map((e) => ListTile(
-                        title: Text(e.key),
-                        trailing: Text('L ${e.value.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo)),
-                      )),
-                  ],
                 ],
-              );
-            },
+              ),
+              const Divider(),
+              if (tipoVista == 'unidades') ...[
+                if (listaOrdenadaUnidades.isEmpty)
+                  const Center(child: Text('No hay datos'))
+                else
+                  ...listaOrdenadaUnidades.map((e) => ListTile(
+                    title: Text(e.key),
+                    trailing: Text('Unidades: ${e.value}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                  )),
+              ] else ...[
+                if (listaOrdenadaValor.isEmpty)
+                  const Center(child: Text('No hay datos'))
+                else
+                  ...listaOrdenadaValor.map((e) => ListTile(
+                    title: Text(e.key),
+                    trailing: Text('L ${e.value.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo)),
+                  )),
+              ],
+            ],
           );
         },
       ),
