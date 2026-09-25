@@ -18,6 +18,7 @@ dependencies:
   shared_preferences: ^2.2.2
   pdf: ^3.10.4          # <-- NUEVO: Para crear el diseño del PDF
   printing: ^5.11.0      # <-- NUEVO: Para previsualizar, compartir e imprimir el PDF
+  file_picker: ^8.1.4
 
 dev_dependencies:
   flutter_test:
