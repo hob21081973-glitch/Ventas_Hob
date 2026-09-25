@@ -130,7 +130,7 @@ class DatabaseHelper {
 }
 
 // ==========================================
-// MENÚ PRINCIPAL CON PESTAÑAS (Manteniendo Estado)
+// MENÚ PRINCIPAL CON PESTAÑAS (Manteniendo Estado Global)
 // ==========================================
 class MenuPrincipal extends StatefulWidget {
   const MenuPrincipal({super.key});
@@ -147,13 +147,14 @@ class MenuPrincipalState extends State<MenuPrincipal> {
   String? clienteEnCurso;
   List<Map<String, dynamic>> productosEnCurso = [];
 
+  // Método clave para pasar datos del historial a la pestaña Crear
   void cargarPedidoParaEditar(int id, String numeroPedido, String cliente, List<Map<String, dynamic>> productos) {
     setState(() {
       editandoPedidoId = id;
       editandoNumeroPedidoFijo = numeroPedido;
       clienteEnCurso = cliente;
       productosEnCurso = List.from(productos);
-      _indiceActual = 0;
+      _indiceActual = 0; // Cambia automáticamente a la pestaña "Crear"
     });
   }
 
@@ -436,7 +437,6 @@ class _VistaCrearPedidoState extends State<VistaCrearPedido> {
                                           if (existenteIndex != -1) {
                                             mainState.productosEnCurso[existenteIndex]['cantidad']++;
                                           } else {
-                                            // MEJORA: Se inserta al principio (índice 0) para que el último agregado quede arriba
                                             mainState.productosEnCurso.insert(0, {
                                               'nombre': p['nombre'],
                                               'precio': p['precio'],
@@ -769,7 +769,7 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
           children: [
             ListTile(
               leading: const Icon(Icons.edit, color: Colors.blue),
-              title: const Text('Editar Pedido (Modificar en Crear)'),
+              title: const Text('Editar Pedido en Pestaña Crear'),
               onTap: () {
                 Navigator.pop(context);
                 _mandarAEditar(pedido);
@@ -896,7 +896,6 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
                       const Text('Productos:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.grey)),
                       const SizedBox(height: 4),
 
-                      // MEJORA: Renderizado exacto con el detalle abajo de cada producto
                       ...itemsList.map((itemStr) {
                         if (itemStr.trim().isEmpty) return const SizedBox.shrink();
                         String texto = itemStr.trim();
@@ -1092,7 +1091,7 @@ class _VistaGestionProductosState extends State<VistaGestionProductos> {
 
 // ==========================================
 // 5. RESUMEN GENERAL
-// ==========================================
+  // ==========================================
 class VistaResumenGeneral extends StatelessWidget {
   const VistaResumenGeneral({super.key});
 
@@ -1143,7 +1142,7 @@ class VistaResumenGeneral extends StatelessWidget {
 }
 
 // ==========================================
-// 6. RESUMEN POR PRODUCTO
+// 6. RESUMEN POR PRODUCTO (Corregido sin duplicidad)
 // ==========================================
 class VistaResumenProductos extends StatefulWidget {
   const VistaResumenProductos({super.key});
@@ -1183,16 +1182,18 @@ class _VistaResumenProductosState extends State<VistaResumenProductos> {
                   if(item.trim().isEmpty) continue;
                   try {
                     var partes = item.split('(x');
-                    String nombreProd = partes[0].trim();
+                    String nombreProdOriginal = partes[0].trim();
                     int cant = int.parse(partes[1].replaceAll(')', '').trim());
                     
-                    conteoUnidades[nombreProd] = (conteoUnidades[nombreProd] ?? 0) + cant;
-                    String nombreLimpio = nombreProd;
-                    if (nombreProd.contains('[')) {
-                      nombreLimpio = nombreProd.substring(0, nombreProd.lastIndexOf('[')).trim();
+                    // CORRECCIÓN: Limpiamos los corchetes de comentarios para agrupar el producto real de forma limpia
+                    String nombreLimpio = nombreProdOriginal;
+                    if (nombreProdOriginal.contains('[')) {
+                      nombreLimpio = nombreProdOriginal.substring(0, nombreProdOriginal.lastIndexOf('[')).trim();
                     }
+
+                    conteoUnidades[nombreLimpio] = (conteoUnidades[nombreLimpio] ?? 0) + cant;
                     double precioUnit = preciosMap[nombreLimpio] ?? 0.0;
-                    valorVentas[nombreProd] = (valorVentas[nombreProd] ?? 0.0) + (precioUnit * cant);
+                    valorVentas[nombreLimpio] = (valorVentas[nombreLimpio] ?? 0.0) + (precioUnit * cant);
                   } catch (_) {}
                 }
               }
@@ -1206,7 +1207,7 @@ class _VistaResumenProductosState extends State<VistaResumenProductos> {
                 padding: const EdgeInsets.all(16),
                 children: [
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween, // CORREGIDO AQUÍ
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       const Text('Ranking de Productos', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                       ToggleButtons(
@@ -1251,6 +1252,7 @@ class _VistaResumenProductosState extends State<VistaResumenProductos> {
     );
   }
 }
+
 // ==========================================
 // 7. EXPORTAR A PDF (CON REPORTES Y GESTIÓN DE INCIDENCIAS)
 // ==========================================
@@ -1444,7 +1446,7 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
                   const Text('Filtra por fechas o déjalas vacías para exportar todo.', style: TextStyle(fontSize: 13, color: Colors.grey)),
                   const SizedBox(height: 12),
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween, // CORREGIDO AQUÍ
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Expanded(
                         child: OutlinedButton.icon(
