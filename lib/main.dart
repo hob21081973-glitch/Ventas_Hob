@@ -10,6 +10,8 @@ import 'dart:convert';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+import 'dart:typed_data'; // <-- Necesario para Uint8List
+import 'package:file_picker/file_picker.dart'; // <-- Necesario para FilePicker.platform.saveFile
 
 // URLs de Google Sheets
 const String urlClientesCSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTmtKhEE5ziDtm_BQdAeOy8c-Z6H6_GbyKcPOvtdjfKtXgxYObBUB-PlK0ldsiwrW78aabDzei-R2Cd/pub?gid=0&single=true&output=csv';
