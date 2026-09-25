@@ -857,7 +857,12 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
     String nombreArchivo = "Pedido_${pedido['numero_pedido'].toString().replaceAll('#', '')}_${pedido['cliente']}.pdf";
     
     try {
+      // En lugar de FilePicker, usa esto para compartir/guardar el PDF sin errores en Android:
       Uint8List bytes = await pdf.save();
+      await Printing.sharePdf(
+        bytes: bytes,
+        filename: 'reporte_ventas_hob.pdf',
+      );
       
       // Selector nativo para que el usuario escoja la carpeta de descarga
       String? outputFile = await FilePicker.platform.saveFile(
@@ -1714,9 +1719,18 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
       ),
     );
 
-    await guardarPdfEnDescargas(pdf, 'Reporte_General_Ventas.pdf');
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Reporte General guardado en la carpeta Descargas')));
+    try {
+      Uint8List bytes = await pdf.save();
+      await Printing.sharePdf(
+        bytes: bytes,
+        filename: 'Reporte_General_Ventas.pdf',
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Reporte General generado con éxito')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error al exportar el PDF: $e')));
+    }
   }
 
   Future<void> _generarReporteConsolidadoIncidencias(String semana) async {
@@ -1820,9 +1834,18 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
       ),
     );
 
-    await guardarPdfEnDescargas(pdf, 'Reporte_Consolidado_${semana.replaceAll(' ', '_')}.pdf');
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Reporte consolidado de $semana guardado en Descargas')));
+    try {
+      Uint8List bytes = await pdf.save();
+      await Printing.sharePdf(
+        bytes: bytes,
+        filename: 'Reporte_Consolidado_${semana.replaceAll(' ', '_')}.pdf',
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Reporte consolidado de $semana generado con éxito')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error al exportar consolidado: $e')));
+    }
   }
 
   void _abrirDialogoReporteCliente() {
@@ -1830,7 +1853,6 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
     String busquedaPedido = '';
     Map<String, dynamic>? pedidoSeleccionado;
     
-    // Controladores declarados fuera del builder del diálogo para evitar pérdida de estado
     final TextEditingController totalLecturaCtrl = TextEditingController();
     final TextEditingController cantidadRealCtrl = TextEditingController();
     final TextEditingController incidenciaCtrl = TextEditingController();
