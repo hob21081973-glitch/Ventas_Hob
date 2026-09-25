@@ -1734,9 +1734,9 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
                     pw.Row(
                       mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                       children: [
-                        pw.Text('Teórico: L ${teorico.toStringAsFixed(2)}', style: const pw.TextStyle(fontSize: 10)),
-                        pw.Text('Real Entregado: L ${real.toStringAsFixed(2)}', style: const pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
-                        pw.Text('Diferencia: L ${diferencia.toStringAsFixed(2)}', style: const pw.TextStyle(fontSize: 10, color: diferencia < 0 ? PdfColors.red700 : PdfColors.green700)),
+                        pw.Text('Teórico: L ${teorico.toStringAsFixed(2)}', style: pw.TextStyle(fontSize: 10)),
+                        pw.Text('Real Entregado: L ${real.toStringAsFixed(2)}', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
+                        pw.Text('Diferencia: L ${diferencia.toStringAsFixed(2)}', style: pw.TextStyle(fontSize: 10, color: diferencia < 0 ? PdfColors.red700 : PdfColors.green700)),
                       ],
                     ),
                     if (incidencia.isNotEmpty) ...[
