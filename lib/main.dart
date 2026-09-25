@@ -853,9 +853,29 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
     );
 
     String nombreArchivo = "Pedido_${pedido['numero_pedido'].toString().replaceAll('#', '')}_${pedido['cliente']}.pdf";
-    await guardarPdfEnDescargas(pdf, nombreArchivo);
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('PDF guardado en Descargas: $nombreArchivo')));
+    
+    try {
+      Uint8List bytes = await pdf.save();
+      
+      // Selector nativo para que el usuario escoja la carpeta de descarga
+      String? outputFile = await FilePicker.platform.saveFile(
+        dialogTitle: 'Elija dónde guardar el comprobante del pedido:',
+        fileName: nombreArchivo,
+        bytes: bytes,
+      );
+
+      if (outputFile != null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('¡PDF guardado con éxito!'), backgroundColor: Colors.green),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al guardar el PDF: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
   }
 
   void _mostrarAsignarSemanaDialog() {
@@ -1402,9 +1422,28 @@ class _VistaResumenProductosState extends State<VistaResumenProductos> {
       ),
     );
 
-    await guardarPdfEnDescargas(pdf, 'Reporte_Acumulado_Productos.pdf');
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Reporte guardado en la carpeta Descargas')));
+    try {
+      Uint8List bytes = await pdf.save();
+      
+      // Selector de carpeta interactivo
+      String? outputFile = await FilePicker.platform.saveFile(
+        dialogTitle: 'Elija dónde guardar el Resumen de Productos:',
+        fileName: 'Reporte_Acumulado_Productos.pdf',
+        bytes: bytes,
+      );
+
+      if (outputFile != null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('¡Reporte guardado con éxito!'), backgroundColor: Colors.green),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al guardar el PDF: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
   }
 
   @override
@@ -1422,7 +1461,6 @@ class _VistaResumenProductosState extends State<VistaResumenProductos> {
           ),
         ],
       ),
-      // CORRECCIÓN: Usamos Future.wait para consultar ambas tablas UNA sola vez y evitar duplicidad
       body: FutureBuilder<List<List<Map<String, dynamic>>>>(
         future: Future.wait([
           DatabaseHelper.instance.database.then((db) => db.query('pedidos')),
@@ -1539,6 +1577,8 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
   Future<void> _generarReporteGeneralPdf() async {
     final db = await DatabaseHelper.instance.database;
     final productosDb = await db.query('productos');
+    if (!mounted) return;
+
     Map<String, String> codigosMap = {};
     for (var prod in productosDb) {
       codigosMap[prod['nombre'].toString().trim()] = prod['codigo'].toString().trim();
@@ -1557,6 +1597,7 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
     } else {
       pedidos = await db.query('pedidos', orderBy: 'fecha ASC');
     }
+    if (!mounted) return;
 
     final pdf = pw.Document();
     double totalGlobal = pedidos.fold(0.0, (sum, p) => sum + (p['total'] as num).toDouble());
@@ -1685,8 +1726,9 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
       orderBy: 'id DESC',
     );
 
+    if (!mounted) return;
+
     if (pedidos.isEmpty) {
-      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No hay pedidos gestionados para esta semana')));
       return;
     }
@@ -1785,8 +1827,11 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
     String semanaFiltro = '';
     String busquedaPedido = '';
     Map<String, dynamic>? pedidoSeleccionado;
-    TextEditingController cantidadRealCtrl = TextEditingController();
-    TextEditingController incidenciaCtrl = TextEditingController();
+    
+    // Controladores declarados fuera del builder del diálogo para evitar pérdida de estado
+    final TextEditingController totalLecturaCtrl = TextEditingController();
+    final TextEditingController cantidadRealCtrl = TextEditingController();
+    final TextEditingController incidenciaCtrl = TextEditingController();
 
     showDialog(
       context: context,
@@ -1820,6 +1865,7 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
                           setStateDialog(() {
                             semanaFiltro = val.trim();
                             pedidoSeleccionado = null;
+                            totalLecturaCtrl.clear();
                           });
                         },
                       ),
@@ -1836,6 +1882,7 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
                           setStateDialog(() {
                             busquedaPedido = val.trim();
                             pedidoSeleccionado = null;
+                            totalLecturaCtrl.clear();
                           });
                         },
                       ),
@@ -1894,7 +1941,9 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
                                     onTap: () {
                                       setStateDialog(() {
                                         pedidoSeleccionado = p;
+                                        totalLecturaCtrl.text = 'L ${(p['total'] as num).toStringAsFixed(2)}';
                                         cantidadRealCtrl.text = p['total'].toString();
+                                        incidenciaCtrl.clear();
                                       });
                                     },
                                   ),
@@ -1914,10 +1963,10 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text('Seleccionado: ${pedidoSeleccionado!['numero_pedido']} (${pedidoSeleccionado!['cliente']})',
-                                  style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo)),
+                                    style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo)),
                                 const SizedBox(height: 10),
                                 TextField(
-                                  controller: TextEditingController(text: 'L ${(pedidoSeleccionado!['total'] as num).toStringAsFixed(2)}'),
+                                  controller: totalLecturaCtrl,
                                   readOnly: true,
                                   decoration: const InputDecoration(
                                     labelText: 'Total del Pedido (Solo Lectura)',
@@ -1969,13 +2018,15 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
                               'incidencia': incidencia,
                             }, where: 'id = ?', whereArgs: [pId]);
 
+                            if (!context.mounted) return;
+
                             setStateDialog(() {
                               pedidoSeleccionado = null;
+                              totalLecturaCtrl.clear();
                               cantidadRealCtrl.clear();
                               incidenciaCtrl.clear();
                             });
 
-                            if (!context.mounted) return;
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(content: Text('Pedido guardado y actualizado. Mostrando siguientes pendientes...')),
                             );
@@ -2024,7 +2075,7 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
                               firstDate: DateTime(2023),
                               lastDate: DateTime(2030),
                             );
-                            if (picked != null) setState(() => fechaInicio = picked);
+                            if (picked != null && mounted) setState(() => fechaInicio = picked);
                           },
                         ),
                       ),
@@ -2040,7 +2091,7 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
                               firstDate: DateTime(2023),
                               lastDate: DateTime(2030),
                             );
-                            if (picked != null) setState(() => fechaFin = picked);
+                            if (picked != null && mounted) setState(() => fechaFin = picked);
                           },
                         ),
                       ),
