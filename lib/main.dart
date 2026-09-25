@@ -1351,10 +1351,14 @@ class _VistaResumenProductosState extends State<VistaResumenProductos> {
       for (var item in items) {
         if (item.trim().isEmpty) continue;
         try {
-          var partes = item.split('(x');
-          String nombreBruto = partes[0].trim();
-          int cant = int.parse(partes[1].replaceAll(')', '').trim());
+          // Extracción limpia y precisa evitando duplicación de cantidades
+          int idxCant = item.lastIndexOf('(x');
+          if (idxCant == -1) continue;
           
+          String nombreBruto = item.substring(0, idxCant).trim();
+          String cantStr = item.substring(idxCant + 2).replaceAll(')', '').trim();
+          int cant = int.parse(cantStr);
+
           String nombreLimpio = nombreBruto;
           if (nombreBruto.contains('[')) {
             nombreLimpio = nombreBruto.substring(0, nombreBruto.lastIndexOf('[')).trim();
@@ -1438,9 +1442,13 @@ class _VistaResumenProductosState extends State<VistaResumenProductos> {
                 for (var item in items) {
                   if(item.trim().isEmpty) continue;
                   try {
-                    var partes = item.split('(x');
-                    String nombreBruto = partes[0].trim();
-                    int cant = int.parse(partes[1].replaceAll(')', '').trim());
+                    // Extracción exacta y limpia sin duplicación acumulativa
+                    int idxCant = item.lastIndexOf('(x');
+                    if (idxCant == -1) continue;
+
+                    String nombreBruto = item.substring(0, idxCant).trim();
+                    String cantStr = item.substring(idxCant + 2).replaceAll(')', '').trim();
+                    int cant = int.parse(cantStr);
                     
                     String nombreLimpio = nombreBruto;
                     if (nombreBruto.contains('[')) {
@@ -1728,7 +1736,7 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
                       children: [
                         pw.Text('Teórico: L ${teorico.toStringAsFixed(2)}', style: const pw.TextStyle(fontSize: 10)),
                         pw.Text('Real Entregado: L ${real.toStringAsFixed(2)}', style: const pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
-                        pw.Text('Diferencia: L ${diferencia.toStringAsFixed(2)}', style: pw.TextStyle(fontSize: 10, color: diferencia < 0 ? PdfColors.red700 : PdfColors.green700)),
+                        pw.Text('Diferencia: L ${diferencia.toStringAsFixed(2)}', style: const pw.TextStyle(fontSize: 10, color: diferencia < 0 ? PdfColors.red700 : PdfColors.green700)),
                       ],
                     ),
                     if (incidencia.isNotEmpty) ...[
