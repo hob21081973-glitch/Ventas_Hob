@@ -1362,7 +1362,9 @@ class _VistaResumenProductosState extends State<VistaResumenProductos> {
           String nombreLimpio = nombreBruto;
           if (nombreBruto.contains('[')) {
             nombreLimpio = nombreBruto.substring(0, nombreBruto.lastIndexOf('[')).trim();
-          }
+          } else if (nombreBruto.contains('(')) {
+        nombreLimpio = nombreBruto.substring(0, nombreBruto.lastIndexOf('(')).trim();
+      }
 
           conteoUnidades[nombreLimpio] = (conteoUnidades[nombreLimpio] ?? 0) + cant;
           double precioUnit = preciosMap[nombreLimpio] ?? 0.0;
@@ -1453,7 +1455,9 @@ class _VistaResumenProductosState extends State<VistaResumenProductos> {
                     String nombreLimpio = nombreBruto;
                     if (nombreBruto.contains('[')) {
                       nombreLimpio = nombreBruto.substring(0, nombreBruto.lastIndexOf('[')).trim();
-                    }
+                    } else if (nombreBruto.contains('(')) {
+                    nombreLimpio = nombreBruto.substring(0, nombreBruto.lastIndexOf('(')).trim();
+                  }
 
                     conteoUnidades[nombreLimpio] = (conteoUnidades[nombreLimpio] ?? 0) + cant;
                     double precioUnit = preciosMap[nombreLimpio] ?? 0.0;
