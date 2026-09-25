@@ -9,7 +9,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:printing/printing.dart';
 
 // URLs de Google Sheets
 const String urlClientesCSV = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTmtKhEE5ziDtm_BQdAeOy8c-Z6H6_GbyKcPOvtdjfKtXgxYObBUB-PlK0ldsiwrW78aabDzei-R2Cd/pub?gid=0&single=true&output=csv';
@@ -55,7 +54,7 @@ class DatabaseHelper {
 
     return await openDatabase(
       path,
-      version: 2,
+      version: 3,
       onCreate: (db, version) async {
         await db.execute('''
           CREATE TABLE clientes (
@@ -79,13 +78,21 @@ class DatabaseHelper {
             productos_json TEXT,
             total REAL,
             fecha TEXT,
-            semana TEXT DEFAULT 'Sin Asignar'
+            semana TEXT DEFAULT 'Sin Asignar',
+            gestionado INTEGER DEFAULT 0,
+            incidencia TEXT DEFAULT '',
+            total_real REAL DEFAULT 0.0
           )
         ''');
       },
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 2) {
           await db.execute("ALTER TABLE pedidos ADD COLUMN semana TEXT DEFAULT 'Sin Asignar'");
+        }
+        if (oldVersion < 3) {
+          await db.execute("ALTER TABLE pedidos ADD COLUMN gestionado INTEGER DEFAULT 0");
+          await db.execute("ALTER TABLE pedidos ADD COLUMN incidencia TEXT DEFAULT ''");
+          await db.execute("ALTER TABLE pedidos ADD COLUMN total_real REAL DEFAULT 0.0");
         }
       },
     );
@@ -134,27 +141,26 @@ class DatabaseHelper {
   }
 }
 
-// Utilidad para guardar PDFs en la carpeta de descargas del dispositivo
+// Utilidad para guardar PDFs estrictamente en la carpeta Descargas del dispositivo
 Future<void> guardarPdfEnDescargas(pw.Document pdf, String nombreArchivo) async {
-  try {
-    Directory? directorio;
-    if (Platform.isAndroid) {
-      directorio = Directory('/storage/emulated/0/Download');
-      if (!await directorio.exists()) {
+  Directory? directorio;
+  if (Platform.isAndroid) {
+    directorio = Directory('/storage/emulated/0/Download');
+    if (!await directorio.exists()) {
+      try {
+        await directorio.create(recursive: true);
+      } catch (_) {
         directorio = await getExternalStorageDirectory();
       }
-    } else {
-      directorio = await getDownloadsDirectory();
     }
-    
-    directorio ??= await getApplicationDocumentsDirectory();
-    
-    final file = File('${directorio.path}/$nombreArchivo');
-    await file.writeAsBytes(await pdf.save());
-  } catch (_) {
-    // Fallback con printing si ocurre alguna restricción de ruta
-    await Printing.sharePdf(bytes: await pdf.save(), filename: nombreArchivo);
+  } else {
+    directorio = await getDownloadsDirectory();
   }
+  
+  directorio ??= await getApplicationDocumentsDirectory();
+  
+  final file = File('${directorio.path}/$nombreArchivo');
+  await file.writeAsBytes(await pdf.save());
 }
 
 // ==========================================
@@ -315,6 +321,9 @@ class _VistaCrearPedidoState extends State<VistaCrearPedido> {
         'total': total,
         'fecha': fecha,
         'semana': 'Sin Asignar',
+        'gestionado': 0,
+        'incidencia': '',
+        'total_real': total,
       });
     }
 
@@ -845,7 +854,7 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
     String nombreArchivo = "Pedido_${pedido['numero_pedido'].toString().replaceAll('#', '')}_${pedido['cliente']}.pdf";
     await guardarPdfEnDescargas(pdf, nombreArchivo);
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('PDF guardado en descargas: $nombreArchivo')));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('PDF guardado en Descargas: $nombreArchivo')));
   }
 
   void _mostrarAsignarSemanaDialog() {
@@ -1012,6 +1021,7 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
               String prodString = p['productos_json']?.toString() ?? '';
               List<String> itemsList = prodString.split(';');
               String semanaActual = p['semana']?.toString() ?? 'Sin Asignar';
+              int gestionado = p['gestionado'] as int? ?? 0;
 
               return Card(
                 color: seleccionado ? Colors.indigo.shade50 : Colors.white,
@@ -1042,6 +1052,15 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
                               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.indigo),
                             ),
                           ),
+                          if (gestionado == 1)
+                            const Padding(
+                              padding: EdgeInsets.only(right: 8.0),
+                              child: Chip(
+                                label: Text('Gestionado', style: TextStyle(fontSize: 10, color: Colors.white)),
+                                backgroundColor: Colors.green,
+                                visualDensity: VisualDensity.compact,
+                              ),
+                            ),
                           IconButton(
                             icon: const Icon(Icons.share, color: Colors.green, size: 20),
                             onPressed: () => _enviarWhatsApp(p['cliente'].toString(), p['productos_json'].toString(), (p['total'] as num).toDouble()),
@@ -1379,7 +1398,7 @@ class _VistaResumenProductosState extends State<VistaResumenProductos> {
 
     await guardarPdfEnDescargas(pdf, 'Reporte_Acumulado_Productos.pdf');
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Reporte de productos guardado en Descargas')));
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Reporte guardado en la carpeta Descargas')));
   }
 
   @override
@@ -1526,7 +1545,6 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
     final pdf = pw.Document();
     double totalGlobal = pedidos.fold(0.0, (sum, p) => sum + (p['total'] as num).toDouble());
 
-    // Agrupar pedidos por fecha
     Map<String, List<Map<String, dynamic>>> pedidosPorFecha = {};
     Map<String, double> totalPorFecha = {};
     for (var p in pedidos) {
@@ -1639,78 +1657,112 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
 
     await guardarPdfEnDescargas(pdf, 'Reporte_General_Ventas.pdf');
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Reporte General guardado en Descargas')));
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Reporte General guardado en la carpeta Descargas')));
   }
 
-  Future<void> _generarReporteClienteIncidenciaPdf(Map<String, dynamic> pedido, double cantidadReal, String incidencia) async {
+  Future<void> _generarReporteConsolidadoIncidencias(String semana) async {
+    final db = await DatabaseHelper.instance.database;
+    final pedidos = await db.query(
+      'pedidos', 
+      where: 'semana LIKE ? AND gestionado = 1', 
+      whereArgs: ['%$semana%'],
+      orderBy: 'id DESC',
+    );
+
+    if (pedidos.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No hay pedidos gestionados para esta semana')));
+      return;
+    }
+
     final pdf = pw.Document();
-    double totalTeorico = (pedido['total'] as num).toDouble();
-    double diferencia = cantidadReal - totalTeorico;
+    double totalGlobalTeorico = 0;
+    double totalGlobalReal = 0;
 
     pdf.addPage(
-      pw.Page(
+      pw.MultiPage(
         pageFormat: PdfPageFormat.letter,
         margin: const pw.EdgeInsets.all(32),
         build: (pw.Context context) {
-          return pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              pw.Header(
-                level: 0,
-                child: pw.Text('Reporte de Entrega e Incidencias - APP VENTAS HOB', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
-              ),
-              pw.SizedBox(height: 10),
-              pw.Text('Cliente: ${pedido['cliente']}', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
-              pw.Text('Número de Pedido: ${pedido['numero_pedido']}', style: const pw.TextStyle(fontSize: 12)),
-              pw.Text('Semana: ${pedido['semana'] ?? 'Sin Asignar'}', style: const pw.TextStyle(fontSize: 12)),
-              pw.Text('Fecha de Registro: ${pedido['fecha']}', style: const pw.TextStyle(fontSize: 12)),
-              pw.Divider(height: 20),
-              pw.Text('Detalle del Pedido Teórico:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-              pw.Paragraph(text: pedido['productos_json'].toString()),
-              pw.Divider(height: 20),
-              pw.Row(
+          List<pw.Widget> widgets = [
+            pw.Header(
+              level: 0,
+              child: pw.Row(
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                 children: [
-                  pw.Text('Total Teórico Registrado:'),
-                  pw.Text('L ${totalTeorico.toStringAsFixed(2)}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                  pw.Text('Reporte Consolidado de Entregas e Incidencias - $semana', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
+                  pw.Text(DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now()), style: const pw.TextStyle(fontSize: 10)),
                 ],
               ),
-              pw.SizedBox(height: 6),
-              pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                children: [
-                  pw.Text('Valor Real Entregado / Cobrado:'),
-                  pw.Text('L ${cantidadReal.toStringAsFixed(2)}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.indigo700)),
-                ],
-              ),
-              pw.SizedBox(height: 6),
-              pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                children: [
-                  pw.Text('Diferencia / Descuento:'),
-                  pw.Text('L ${diferencia.toStringAsFixed(2)}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: diferencia < 0 ? PdfColors.red700 : PdfColors.green700)),
-                ],
-              ),
-              pw.Divider(height: 20),
-              pw.Text('Incidencias / Comentarios:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+            ),
+            pw.SizedBox(height: 10),
+          ];
+
+          for (var p in pedidos) {
+            double teorico = (p['total'] as num).toDouble();
+            double real = (p['total_real'] as num).toDouble();
+            double diferencia = real - teorico;
+            String incidencia = p['incidencia']?.toString() ?? '';
+
+            totalGlobalTeorico += teorico;
+            totalGlobalReal += real;
+
+            widgets.add(
               pw.Container(
-                padding: const pw.EdgeInsets.all(10),
+                padding: const pw.EdgeInsets.all(8),
+                margin: const pw.EdgeInsets.only(bottom: 12),
                 decoration: pw.BoxDecoration(
                   border: pw.Border.all(color: PdfColors.grey400),
                   borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
                 ),
-                child: pw.Text(incidencia.isEmpty ? 'Ninguna incidencia registrada.' : incidencia),
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text('Pedido: ${p['numero_pedido']} - Cliente: ${p['cliente']}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12)),
+                    pw.SizedBox(height: 4),
+                    pw.Text('Detalle: ${p['productos_json']}', style: const pw.TextStyle(fontSize: 10)),
+                    pw.Divider(height: 8),
+                    pw.Row(
+                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                      children: [
+                        pw.Text('Teórico: L ${teorico.toStringAsFixed(2)}', style: const pw.TextStyle(fontSize: 10)),
+                        pw.Text('Real Entregado: L ${real.toStringAsFixed(2)}', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
+                        pw.Text('Diferencia: L ${diferencia.toStringAsFixed(2)}', style: pw.TextStyle(fontSize: 10, color: diferencia < 0 ? PdfColors.red700 : PdfColors.green700)),
+                      ],
+                    ),
+                    if (incidencia.isNotEmpty) ...[
+                      pw.SizedBox(height: 4),
+                      pw.Text('Incidencia: $incidencia', style: pw.TextStyle(fontSize: 10, fontStyle: pw.FontStyle.italic, color: PdfColors.grey800)),
+                    ]
+                  ],
+                ),
               ),
-            ],
+            );
+          }
+
+          widgets.add(pw.SizedBox(height: 10));
+          widgets.add(
+            pw.Container(
+              padding: const pw.EdgeInsets.all(10),
+              color: PdfColors.indigo50,
+              child: pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Text('Total Consolidado Teórico: L ${totalGlobalTeorico.toStringAsFixed(2)}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12)),
+                  pw.Text('Total Consolidado Real: L ${totalGlobalReal.toStringAsFixed(2)}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12, color: PdfColors.indigo900)),
+                ],
+              ),
+            ),
           );
+
+          return widgets;
         },
       ),
     );
 
-    String nombreArchivo = "Reporte_Incidencia_${pedido['numero_pedido'].toString().replaceAll('#', '')}_${pedido['cliente']}.pdf";
-    await guardarPdfEnDescargas(pdf, nombreArchivo);
+    await guardarPdfEnDescargas(pdf, 'Reporte_Consolidado_${semana.replaceAll(' ', '_')}.pdf');
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Reporte guardado en Descargas: $nombreArchivo')));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Reporte consolidado de $semana guardado en Descargas')));
   }
 
   void _abrirDialogoReporteCliente() {
@@ -1772,13 +1824,29 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
                         },
                       ),
                       const SizedBox(height: 20),
-                      const Text('3. Selecciona el Pedido:', style: TextStyle(fontWeight: FontWeight.bold)),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.between,
+                        children: [
+                          const Text('3. Pedidos Faltantes de Entrega:', style: TextStyle(fontWeight: FontWeight.bold)),
+                          if (semanaFiltro.isNotEmpty)
+                            ElevatedButton.icon(
+                              style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
+                              icon: const Icon(Icons.picture_as_pdf, size: 16),
+                              label: Text('Generar PDF $semanaFiltro'),
+                              onPressed: () {
+                                _generarReporteConsolidadoIncidencias(semanaFiltro);
+                                Navigator.pop(context);
+                              },
+                            ),
+                        ],
+                      ),
                       const SizedBox(height: 8),
                       SizedBox(
                         height: 180,
                         child: FutureBuilder<List<Map<String, dynamic>>>(
                           future: DatabaseHelper.instance.database.then((db) {
-                            String whereClause = '1=1';
+                            // Solo mostramos los pedidos NO gestionados para que vayan desapareciendo
+                            String whereClause = 'gestionado = 0';
                             List<Object> args = [];
                             if (semanaFiltro.isNotEmpty) {
                               whereClause += ' AND semana LIKE ?';
@@ -1795,7 +1863,7 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
                             if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
                             final pedidos = snapshot.data!;
                             if (pedidos.isEmpty) {
-                              return const Center(child: Text('No se encontraron pedidos con esos filtros.'));
+                              return const Center(child: Text('¡Excelente! No hay pedidos pendientes de entrega con este filtro.'));
                             }
                             return ListView.builder(
                               itemCount: pedidos.length,
@@ -1872,12 +1940,30 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
                             foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(vertical: 14),
                           ),
-                          icon: const Icon(Icons.picture_as_pdf),
-                          label: const Text('Generar y Exportar Reporte con Incidencia'),
-                          onPressed: () {
+                          icon: const Icon(Icons.save),
+                          label: const Text('Guardar Pedido y Continuar con Siguiente'),
+                          onPressed: () async {
                             double real = double.tryParse(cantidadRealCtrl.text.trim()) ?? (pedidoSeleccionado!['total'] as num).toDouble();
-                            _generarReporteClienteIncidenciaPdf(pedidoSeleccionado!, real, incidenciaCtrl.text.trim());
-                            Navigator.pop(context);
+                            String incidencia = incidenciaCtrl.text.trim();
+                            int pId = pedidoSeleccionado!['id'] as int;
+
+                            final db = await DatabaseHelper.instance.database;
+                            await db.update('pedidos', {
+                              'gestionado': 1,
+                              'total_real': real,
+                              'incidencia': incidencia,
+                            }, where: 'id = ?', whereArgs: [pId]);
+
+                            setStateDialog(() {
+                              pedidoSeleccionado = null;
+                              cantidadRealCtrl.clear();
+                              incidenciaCtrl.clear();
+                            });
+
+                            if (!context.mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Pedido guardado y actualizado. Mostrando siguientes pendientes...')),
+                            );
                           },
                         ),
                       ],
@@ -1969,7 +2055,7 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
                 children: [
                   const Text('Reporte Gral por Cliente e Incidencias', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 6),
-                  const Text('Selecciona una semana o pedido para registrar valor entregado y comentarios de incidencias.', style: TextStyle(fontSize: 13, color: Colors.grey)),
+                  const Text('Selecciona una semana para gestionar entregas, guardar cambios y generar reporte.', style: TextStyle(fontSize: 13, color: Colors.grey)),
                   const SizedBox(height: 12),
                   SizedBox(
                     width: double.infinity,
