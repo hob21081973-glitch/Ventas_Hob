@@ -1066,21 +1066,25 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
           )
         ],
       ),
-      body: FutureBuilder<List<Map<String, dynamic>>>(
+      body: FutureBuilder<Map<String, List<Map<String, dynamic>>>>(
         future: DatabaseHelper.instance.database.then((db) async {
           final pedidos = await db.query('pedidos', orderBy: 'id DESC');
           final clientes = await db.query('clientes');
           final productos = await db.query('productos');
-          return {'pedidos': pedidos, 'clientes': clientes, 'productos': productos};
+          return {
+            'pedidos': pedidos,
+            'clientes': clientes,
+            'productos': productos,
+          };
         }),
         builder: (context, snapshot) {
           if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
           
           final data = snapshot.data!;
-          final pedidos = data['pedidos'] as List<Map<String, dynamic>>;
-          final clientes = data['clientes'] as List<Map<String, dynamic>>;
-          final productos = data['productos'] as List<Map<String, dynamic>>;
-
+          final List<Map<String, dynamic>> pedidos = data['pedidos'] ?? [];
+          final List<Map<String, dynamic>> clientes = data['clientes'] ?? [];
+          final List<Map<String, dynamic>> productos = data['productos'] ?? [];
+          
           Map<String, String> codigosClientMap = {};
           for (var c in clientes) {
             codigosClientMap[c['nombre'].toString().trim()] = c['codigo'].toString().trim();
