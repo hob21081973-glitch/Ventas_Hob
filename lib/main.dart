@@ -789,39 +789,11 @@ class _VistaCrearPedidoState extends State<VistaCrearPedido> {
 }
 
 // ==========================================
-// 2. PESTAÑA: HISTORIAL DE PEDIDOS
+// 2. PESTAÑA: HISTORIAL DE PEDIDOS (PDF INDIVIDUAL CORREGIDO)
 // ==========================================
-class VistaHistorialPedidos extends StatefulWidget {
-  const VistaHistorialPedidos({super.key});
-
-  @override
-  State<VistaHistorialPedidos> createState() => _VistaHistorialPedidosState();
-}
-
-class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
-  Set<int> pedidosSeleccionadosIds = {};
-
-  Future<void> _resetearConteo() async {
-    final db = await DatabaseHelper.instance.database;
-    await db.delete('pedidos');
-    pedidosSeleccionadosIds.clear();
-    setState(() {});
-    if(!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Conteo de pedidos reseteado a 0')));
-  }
-
-  void _enviarWhatsApp(String cliente, String productos, double total) async {
-    String mensaje = "Hola $cliente, tu pedido consta de: $productos. Total: L ${total.toStringAsFixed(2)}. ¡Gracias por tu compra!";
-    final url = Uri.parse("https://wa.me/?text=${Uri.encodeComponent(mensaje)}");
-    if (await canLaunchUrl(url)) {
-      await launchUrl(url, mode: LaunchMode.externalApplication);
-    }
-  }
-
   Future<void> _generarPdfPedidoIndividual(Map<String, dynamic> pedido) async {
     final db = await DatabaseHelper.instance.database;
     
-    // Obtenemos catálogos para extraer códigos de cliente y productos
     final productosDb = await db.query('productos');
     final clientesDb = await db.query('clientes');
 
@@ -912,319 +884,20 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
       ),
     );
 
-    String nombreArchivo = "Pedido_${pedido['numero_pedido'].toString().replaceAll('#', '')}_$nombreCliente.pdf";
-    await guardarPdfEnDescargas(pdf, nombreArchivo);
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('PDF guardado en descargas: $nombreArchivo')));
-  }
-
-  void _mostrarAsignarSemanaDialog() {
-    if (pedidosSeleccionadosIds.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Seleccione al menos un pedido')));
-      return;
-    }
-    TextEditingController semanaCtrl = TextEditingController(text: 'Semana 01');
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Asignar a Semana'),
-        content: TextField(
-          controller: semanaCtrl,
-          decoration: const InputDecoration(labelText: 'Ej. Semana 01, Semana 02...'),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
-          ElevatedButton(
-            onPressed: () async {
-              String sem = semanaCtrl.text.trim();
-              if (sem.isNotEmpty) {
-                final db = await DatabaseHelper.instance.database;
-                for (int id in pedidosSeleccionadosIds) {
-                  await db.update('pedidos', {'semana': sem}, where: 'id = ?', whereArgs: [id]);
-                }
-                pedidosSeleccionadosIds.clear();
-                setState(() {});
-                if(!mounted) return;
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Pedidos asignados a $sem')));
-              }
-            },
-            child: const Text('Guardar'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _mostrarMenuOpciones(Map<String, dynamic> pedido) {
-    showModalBottomSheet(
-      context: context,
-      builder: (context) {
-        return Wrap(
-          children: [
-            ListTile(
-              leading: const Icon(Icons.picture_as_pdf, color: Colors.indigo),
-              title: const Text('Generar PDF por Pedido'),
-              onTap: () {
-                Navigator.pop(context);
-                _generarPdfPedidoIndividual(pedido);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.edit, color: Colors.blue),
-              title: const Text('Editar Pedido (Modificar en Crear)'),
-              onTap: () {
-                Navigator.pop(context);
-                _mandarAEditar(pedido);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.delete, color: Colors.red),
-              title: const Text('Eliminar Pedido'),
-              onTap: () async {
-                Navigator.pop(context);
-                final db = await DatabaseHelper.instance.database;
-                await db.delete('pedidos', where: 'id = ?', whereArgs: [pedido['id']]);
-                setState(() {});
-              },
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  void _mandarAEditar(Map<String, dynamic> pedido) async {
-    List<Map<String, dynamic>> productosParsed = [];
-    String prodString = pedido['productos_json'].toString();
-    
-    List<String> items = prodString.split(';');
-    for (var item in items) {
-      if (item.trim().isEmpty) continue;
-      try {
-        String texto = item.trim();
-        int cant = 1;
-        if (texto.contains('(x')) {
-          var splitCant = texto.split('(x');
-          texto = splitCant[0].trim();
-          cant = int.parse(splitCant[1].replaceAll(')', '').trim());
-        }
-        String nombre = texto;
-        String comentario = '';
-        if (texto.contains('[') && texto.endsWith(']')) {
-          int startIdx = texto.lastIndexOf('[');
-          nombre = texto.substring(0, startIdx).trim();
-          comentario = texto.substring(startIdx + 1, texto.length - 1).trim();
-        }
-
-        final db = await DatabaseHelper.instance.database;
-        var prodDb = await db.query('productos', where: 'nombre = ?', whereArgs: [nombre], limit: 1);
-        double precio = 0.0;
-        if (prodDb.isNotEmpty) {
-          precio = (prodDb.first['precio'] as num).toDouble();
-        }
-
-        productosParsed.add({
-          'nombre': nombre,
-          'precio': precio,
-          'cantidad': cant,
-          'comentario': comentario,
-        });
-      } catch (_) {}
-    }
-
-    final mainState = context.findAncestorStateOfType<MenuPrincipalState>();
-    if (mainState != null) {
-      mainState.cargarPedidoParaEditar(
-        pedido['id'],
-        pedido['numero_pedido'].toString(),
-        pedido['cliente'].toString(),
-        productosParsed,
-      );
+    try {
+      Uint8List bytes = await pdf.save();
+      String nombreArchivo = "Pedido_${pedido['numero_pedido'].toString().replaceAll('#', '')}_$nombreCliente.pdf";
+      
+      // Usamos Printing.sharePdf para garantizar compatibilidad total en Android sin bloqueos de permisos de ruta
+      await Printing.sharePdf(bytes: bytes, filename: nombreArchivo);
+      
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('PDF generado: $nombreArchivo')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error al generar PDF: $e')));
     }
   }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Historial de Pedidos'),
-        backgroundColor: Colors.indigo,
-        foregroundColor: Colors.white,
-        automaticallyImplyLeading: false,
-        actions: [
-          if (pedidosSeleccionadosIds.isNotEmpty)
-            IconButton(
-              icon: const Icon(Icons.bookmark_add),
-              tooltip: 'Asignar Semana',
-              onPressed: _mostrarAsignarSemanaDialog,
-            ),
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            tooltip: 'Resetear Conteo',
-            onPressed: _resetearConteo,
-          )
-        ],
-      ),
-      body: FutureBuilder<Map<String, List<Map<String, dynamic>>>>(
-        future: DatabaseHelper.instance.database.then((db) async {
-          final pedidos = await db.query('pedidos', orderBy: 'id DESC');
-          final clientes = await db.query('clientes');
-          final productos = await db.query('productos');
-          return {
-            'pedidos': pedidos,
-            'clientes': clientes,
-            'productos': productos,
-          };
-        }),
-        builder: (context, snapshot) {
-          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-          
-          final data = snapshot.data!;
-          final List<Map<String, dynamic>> pedidos = data['pedidos'] ?? [];
-          final List<Map<String, dynamic>> clientes = data['clientes'] ?? [];
-          final List<Map<String, dynamic>> productos = data['productos'] ?? [];
-          
-          Map<String, String> codigosClientMap = {};
-          for (var c in clientes) {
-            codigosClientMap[c['nombre'].toString().trim()] = c['codigo'].toString().trim();
-          }
-
-          Map<String, String> codigosProdMap = {};
-          for (var p in productos) {
-            codigosProdMap[p['nombre'].toString().trim()] = p['codigo'].toString().trim();
-          }
-
-          if (pedidos.isEmpty) return const Center(child: Text('No hay pedidos registrados.'));
-          
-          return ListView.builder(
-            itemCount: pedidos.length,
-            itemBuilder: (context, index) {
-              final p = pedidos[index];
-              int pId = p['id'] as int;
-              bool seleccionado = pedidosSeleccionadosIds.contains(pId);
-              String prodString = p['productos_json']?.toString() ?? '';
-              List<String> itemsList = prodString.split(';');
-              String semanaActual = p['semana']?.toString() ?? 'Sin Asignar';
-              
-              String nombreCliente = p['cliente'].toString().trim();
-              String codigoCliente = codigosClientMap[nombreCliente] ?? 'S/C';
-
-              return Card(
-                color: seleccionado ? Colors.indigo.shade50 : Colors.white,
-                margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                child: Padding(
-                  padding: const EdgeInsets.all(12.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Checkbox(
-                            value: seleccionado,
-                            onChanged: (val) {
-                              setState(() {
-                                if (val == true) {
-                                  pedidosSeleccionadosIds.add(pId);
-                                } else {
-                                  pedidosSeleccionadosIds.remove(pId);
-                                }
-                              });
-                            },
-                          ),
-                          Expanded(
-                            child: Text(
-                              '${p['numero_pedido']} - [$codigoCliente] $nombreCliente [$semanaActual]', 
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.indigo),
-                            ),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.share, color: Colors.green, size: 20),
-                            onPressed: () => _enviarWhatsApp(nombreCliente, prodString, (p['total'] as num).toDouble()),
-                            constraints: const BoxConstraints(),
-                            padding: EdgeInsets.zero,
-                          ),
-                        ],
-                      ),
-                      const Divider(height: 12),
-                      const Text('Productos:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.grey)),
-                      const SizedBox(height: 4),
-                      ...itemsList.map((itemStr) {
-                        if (itemStr.trim().isEmpty) return const SizedBox.shrink();
-                        String texto = itemStr.trim();
-                        int cant = 1;
-                        if (texto.contains('(x')) {
-                          var splitCant = texto.split('(x');
-                          texto = splitCant[0].trim();
-                          try {
-                            cant = int.parse(splitCant[1].replaceAll(')', '').trim());
-                          } catch (_) {}
-                        }
-                        String nombreProd = texto;
-                        String detalleProd = '';
-                        if (texto.contains('[') && texto.endsWith(']')) {
-                          int startIdx = texto.lastIndexOf('[');
-                          nombreProd = texto.substring(0, startIdx).trim();
-                          detalleProd = texto.substring(startIdx + 1, texto.length - 1).trim();
-                        }
-                        String codigoProd = codigosProdMap[nombreProd] ?? 'S/C';
-
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 6.0, left: 8.0),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                '• [$codigoProd] $nombreProd (x$cant)', 
-                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
-                              ),
-                              if (detalleProd.isNotEmpty)
-                                Padding(
-                                  padding: const EdgeInsets.only(left: 16.0, top: 1.0),
-                                  child: Text(
-                                    detalleProd, 
-                                    style: const TextStyle(fontStyle: FontStyle.italic, fontSize: 11, color: Colors.grey),
-                                  ),
-                                ),
-                            ],
-                          ),
-                        );
-                      }),
-                      const Divider(height: 12),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'Total: L ${(p['total'] as num).toStringAsFixed(2)}', 
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.green),
-                          ),
-                          Text(
-                            'Fecha: ${p['fecha']}', 
-                            style: const TextStyle(color: Colors.grey, fontSize: 11),
-                          ),
-                        ],
-                      ),
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: TextButton.icon(
-                          onPressed: () => _mostrarMenuOpciones(p),
-                          icon: const Icon(Icons.more_vert, size: 16),
-                          label: const Text('Opciones', style: TextStyle(fontSize: 12)),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            },
-          );
-        },
-      ),
-    );
-  }
-}
-
 // ==========================================
 // 3. GESTIÓN CLIENTES
 // ==========================================
@@ -1396,18 +1069,8 @@ class VistaResumenGeneral extends StatelessWidget {
 }
 
 // ==========================================
-// 6. RESUMEN POR PRODUCTO
+// 6. RESUMEN POR PRODUCTO (PDF CORREGIDO)
 // ==========================================
-class VistaResumenProductos extends StatefulWidget {
-  const VistaResumenProductos({super.key});
-
-  @override
-  State<VistaResumenProductos> createState() => _VistaResumenProductosState();
-}
-
-class _VistaResumenProductosState extends State<VistaResumenProductos> {
-  String tipoVista = 'unidades';
-
   Future<void> _generarReporteProductosPdf() async {
     final db = await DatabaseHelper.instance.database;
     final pedidos = await db.query('pedidos');
@@ -1430,18 +1093,13 @@ class _VistaResumenProductosState extends State<VistaResumenProductos> {
       for (var item in items) {
         if (item.trim().isEmpty) continue;
         try {
-          int idxCant = item.lastIndexOf('(x');
-          if (idxCant == -1) continue;
+          var partes = item.split('(x');
+          String nombreBruto = partes[0].trim();
+          int cant = int.parse(partes[1].replaceAll(')', '').trim());
           
-          String nombreBruto = item.substring(0, idxCant).trim();
-          String cantStr = item.substring(idxCant + 2).replaceAll(')', '').trim();
-          int cant = int.parse(cantStr);
-
           String nombreLimpio = nombreBruto;
           if (nombreBruto.contains('[')) {
             nombreLimpio = nombreBruto.substring(0, nombreBruto.lastIndexOf('[')).trim();
-          } else if (nombreBruto.contains('(')) {
-            nombreLimpio = nombreBruto.substring(0, nombreBruto.lastIndexOf('(')).trim();
           }
 
           conteoUnidades[nombreLimpio] = (conteoUnidades[nombreLimpio] ?? 0) + cant;
@@ -1483,142 +1141,15 @@ class _VistaResumenProductosState extends State<VistaResumenProductos> {
 
     try {
       Uint8List bytes = await pdf.save();
+      await Printing.sharePdf(bytes: bytes, filename: 'Reporte_Acumulado_Productos.pdf');
       
-      // Selector de carpeta interactivo
-      String? outputFile = await FilePicker.platform.saveFile(
-        dialogTitle: 'Elija dónde guardar el Resumen de Productos:',
-        fileName: 'Reporte_Acumulado_Productos.pdf',
-        bytes: bytes,
-      );
-
-      if (outputFile != null && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('¡Reporte guardado con éxito!'), backgroundColor: Colors.green),
-        );
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Reporte de productos generado con éxito')));
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al guardar el PDF: $e'), backgroundColor: Colors.red),
-        );
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error al generar PDF de productos: $e')));
     }
   }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Resumen por Producto'), 
-        backgroundColor: Colors.indigo, 
-        foregroundColor: Colors.white,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.picture_as_pdf),
-            tooltip: 'Descargar PDF de Productos',
-            onPressed: _generarReporteProductosPdf,
-          ),
-        ],
-      ),
-      body: FutureBuilder<List<List<Map<String, dynamic>>>>(
-        future: Future.wait([
-          DatabaseHelper.instance.database.then((db) => db.query('pedidos')),
-          DatabaseHelper.instance.database.then((db) => db.query('productos')),
-        ]),
-        builder: (context, snapshot) {
-          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-          
-          final pedidos = snapshot.data![0];
-          final productosDb = snapshot.data![1];
-
-          Map<String, double> preciosMap = {};
-          for (var prod in productosDb) {
-            preciosMap[prod['nombre'].toString().trim()] = (prod['precio'] as num).toDouble();
-          }
-
-          Map<String, int> conteoUnidades = {};
-          Map<String, double> valorVentas = {};
-
-          for (var p in pedidos) {
-            String prodString = p['productos_json'].toString();
-            List<String> items = prodString.split(';');
-            for (var item in items) {
-              if (item.trim().isEmpty) continue;
-              try {
-                int idxCant = item.lastIndexOf('(x');
-                if (idxCant == -1) continue;
-
-                String nombreBruto = item.substring(0, idxCant).trim();
-                String cantStr = item.substring(idxCant + 2).replaceAll(')', '').trim();
-                int cant = int.parse(cantStr);
-                
-                String nombreLimpio = nombreBruto;
-                if (nombreBruto.contains('[')) {
-                  nombreLimpio = nombreBruto.substring(0, nombreBruto.lastIndexOf('[')).trim();
-                } else if (nombreBruto.contains('(')) {
-                  nombreLimpio = nombreBruto.substring(0, nombreBruto.lastIndexOf('(')).trim();
-                }
-
-                conteoUnidades[nombreLimpio] = (conteoUnidades[nombreLimpio] ?? 0) + cant;
-                double precioUnit = preciosMap[nombreLimpio] ?? 0.0;
-                valorVentas[nombreLimpio] = (valorVentas[nombreLimpio] ?? 0.0) + (precioUnit * cant);
-              } catch (_) {}
-            }
-          }
-
-          var listaOrdenadaUnidades = conteoUnidades.entries.toList()
-            ..sort((a, b) => b.value.compareTo(a.value));
-          var listaOrdenadaValor = valorVentas.entries.toList()
-            ..sort((a, b) => b.value.compareTo(a.value));
-
-          return ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('Ranking de Productos', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                  ToggleButtons(
-                    isSelected: [tipoVista == 'unidades', tipoVista == 'valor'],
-                    onPressed: (index) {
-                      setState(() {
-                        tipoVista = index == 0 ? 'unidades' : 'valor';
-                      });
-                    },
-                    constraints: const BoxConstraints(minHeight: 30, minWidth: 80),
-                    children: const [
-                      Text('Unidades', style: TextStyle(fontSize: 12)),
-                      Text('Valor (L)', style: TextStyle(fontSize: 12)),
-                    ],
-                  ),
-                ],
-              ),
-              const Divider(),
-              if (tipoVista == 'unidades') ...[
-                if (listaOrdenadaUnidades.isEmpty)
-                  const Center(child: Text('No hay datos'))
-                else
-                  ...listaOrdenadaUnidades.map((e) => ListTile(
-                    title: Text(e.key),
-                    trailing: Text('Unidades: ${e.value}', style: const TextStyle(fontWeight: FontWeight.bold)),
-                  )),
-              ] else ...[
-                if (listaOrdenadaValor.isEmpty)
-                  const Center(child: Text('No hay datos'))
-                else
-                  ...listaOrdenadaValor.map((e) => ListTile(
-                    title: Text(e.key),
-                    trailing: Text('L ${e.value.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo)),
-                  )),
-              ],
-            ],
-          );
-        },
-      ),
-    );
-  }
-}
-
 // ==========================================
 // 7. EXPORTAR A PDF (CON CÓDIGOS DE CLIENTE Y PRODUCTO)
 // ==========================================
