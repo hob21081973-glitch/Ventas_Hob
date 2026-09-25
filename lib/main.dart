@@ -819,12 +819,69 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
   }
 
   Future<void> _generarPdfPedidoIndividual(Map<String, dynamic> pedido) async {
+    final db = await DatabaseHelper.instance.database;
+    
+    // Obtenemos catálogos para extraer códigos de cliente y productos
+    final productosDb = await db.query('productos');
+    final clientesDb = await db.query('clientes');
+
+    Map<String, String> codigosProdMap = {};
+    for (var prod in productosDb) {
+      codigosProdMap[prod['nombre'].toString().trim()] = prod['codigo'].toString().trim();
+    }
+
+    Map<String, String> codigosClientMap = {};
+    for (var cli in clientesDb) {
+      codigosClientMap[cli['nombre'].toString().trim()] = cli['codigo'].toString().trim();
+    }
+
+    String nombreCliente = pedido['cliente'].toString().trim();
+    String codigoCliente = codigosClientMap[nombreCliente] ?? 'S/C';
+
     final pdf = pw.Document();
     pdf.addPage(
       pw.Page(
         pageFormat: PdfPageFormat.letter,
         margin: const pw.EdgeInsets.all(32),
         build: (pw.Context context) {
+          List<pw.Widget> detalleWidgets = [];
+          String prodString = pedido['productos_json'].toString();
+          List<String> items = prodString.split(';');
+          for (var item in items) {
+            if (item.trim().isEmpty) continue;
+            String texto = item.trim();
+            int cant = 1;
+            if (texto.contains('(x')) {
+              var splitCant = texto.split('(x');
+              texto = splitCant[0].trim();
+              try {
+                cant = int.parse(splitCant[1].replaceAll(')', '').trim());
+              } catch (_) {}
+            }
+            String nombreProd = texto;
+            String detalleProd = '';
+            if (texto.contains('[') && texto.endsWith(']')) {
+              int startIdx = texto.lastIndexOf('[');
+              nombreProd = texto.substring(0, startIdx).trim();
+              detalleProd = texto.substring(startIdx + 1, texto.length - 1).trim();
+            }
+            String codigoProd = codigosProdMap[nombreProd] ?? 'S/C';
+
+            detalleWidgets.add(
+              pw.Padding(
+                padding: const pw.EdgeInsets.only(left: 10, bottom: 4),
+                child: pw.Row(
+                  children: [
+                    pw.Text('[$codigoProd] ', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
+                    pw.Expanded(
+                      child: pw.Text('$nombreProd (x$cant)${detalleProd.isNotEmpty ? ' [$detalleProd]' : ''}', style: const pw.TextStyle(fontSize: 10)),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
+
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
@@ -834,12 +891,13 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
               ),
               pw.SizedBox(height: 10),
               pw.Text('Número de Pedido: ${pedido['numero_pedido']}', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
-              pw.Text('Cliente: ${pedido['cliente']}', style: const pw.TextStyle(fontSize: 12)),
+              pw.Text('Cliente: [$codigoCliente] $nombreCliente', style: const pw.TextStyle(fontSize: 12)),
               pw.Text('Fecha: ${pedido['fecha']}', style: const pw.TextStyle(fontSize: 12)),
               pw.Text('Semana: ${pedido['semana'] ?? 'Sin Asignar'}', style: const pw.TextStyle(fontSize: 12)),
               pw.Divider(height: 20),
               pw.Text('Detalle de Productos:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
-              pw.Paragraph(text: pedido['productos_json'].toString()),
+              pw.SizedBox(height: 6),
+              ...detalleWidgets,
               pw.Divider(height: 20),
               pw.Row(
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
@@ -854,35 +912,10 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
       ),
     );
 
-    String nombreArchivo = "Pedido_${pedido['numero_pedido'].toString().replaceAll('#', '')}_${pedido['cliente']}.pdf";
-    
-    try {
-      // En lugar de FilePicker, usa esto para compartir/guardar el PDF sin errores en Android:
-      Uint8List bytes = await pdf.save();
-      await Printing.sharePdf(
-        bytes: bytes,
-        filename: 'reporte_ventas_hob.pdf',
-      );
-      
-      // Selector nativo para que el usuario escoja la carpeta de descarga
-      String? outputFile = await FilePicker.platform.saveFile(
-        dialogTitle: 'Elija dónde guardar el comprobante del pedido:',
-        fileName: nombreArchivo,
-        bytes: bytes,
-      );
-
-      if (outputFile != null && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('¡PDF guardado con éxito!'), backgroundColor: Colors.green),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al guardar el PDF: $e'), backgroundColor: Colors.red),
-        );
-      }
-    }
+    String nombreArchivo = "Pedido_${pedido['numero_pedido'].toString().replaceAll('#', '')}_$nombreCliente.pdf";
+    await guardarPdfEnDescargas(pdf, nombreArchivo);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('PDF guardado en descargas: $nombreArchivo')));
   }
 
   void _mostrarAsignarSemanaDialog() {
@@ -1034,10 +1067,30 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
         ],
       ),
       body: FutureBuilder<List<Map<String, dynamic>>>(
-        future: DatabaseHelper.instance.database.then((db) => db.query('pedidos', orderBy: 'id DESC')),
+        future: DatabaseHelper.instance.database.then((db) async {
+          final pedidos = await db.query('pedidos', orderBy: 'id DESC');
+          final clientes = await db.query('clientes');
+          final productos = await db.query('productos');
+          return {'pedidos': pedidos, 'clientes': clientes, 'productos': productos};
+        }),
         builder: (context, snapshot) {
           if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-          final pedidos = snapshot.data!;
+          
+          final data = snapshot.data!;
+          final pedidos = data['pedidos'] as List<Map<String, dynamic>>;
+          final clientes = data['clientes'] as List<Map<String, dynamic>>;
+          final productos = data['productos'] as List<Map<String, dynamic>>;
+
+          Map<String, String> codigosClientMap = {};
+          for (var c in clientes) {
+            codigosClientMap[c['nombre'].toString().trim()] = c['codigo'].toString().trim();
+          }
+
+          Map<String, String> codigosProdMap = {};
+          for (var p in productos) {
+            codigosProdMap[p['nombre'].toString().trim()] = p['codigo'].toString().trim();
+          }
+
           if (pedidos.isEmpty) return const Center(child: Text('No hay pedidos registrados.'));
           
           return ListView.builder(
@@ -1049,7 +1102,9 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
               String prodString = p['productos_json']?.toString() ?? '';
               List<String> itemsList = prodString.split(';');
               String semanaActual = p['semana']?.toString() ?? 'Sin Asignar';
-              int gestionado = p['gestionado'] as int? ?? 0;
+              
+              String nombreCliente = p['cliente'].toString().trim();
+              String codigoCliente = codigosClientMap[nombreCliente] ?? 'S/C';
 
               return Card(
                 color: seleccionado ? Colors.indigo.shade50 : Colors.white,
@@ -1076,22 +1131,13 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
                           ),
                           Expanded(
                             child: Text(
-                              '${p['numero_pedido']} - ${p['cliente']} [$semanaActual]', 
+                              '${p['numero_pedido']} - [$codigoCliente] $nombreCliente [$semanaActual]', 
                               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.indigo),
                             ),
                           ),
-                          if (gestionado == 1)
-                            const Padding(
-                              padding: EdgeInsets.only(right: 8.0),
-                              child: Chip(
-                                label: Text('Gestionado', style: TextStyle(fontSize: 10, color: Colors.white)),
-                                backgroundColor: Colors.green,
-                                visualDensity: VisualDensity.compact,
-                              ),
-                            ),
                           IconButton(
                             icon: const Icon(Icons.share, color: Colors.green, size: 20),
-                            onPressed: () => _enviarWhatsApp(p['cliente'].toString(), p['productos_json'].toString(), (p['total'] as num).toDouble()),
+                            onPressed: () => _enviarWhatsApp(nombreCliente, prodString, (p['total'] as num).toDouble()),
                             constraints: const BoxConstraints(),
                             padding: EdgeInsets.zero,
                           ),
@@ -1118,18 +1164,20 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
                           nombreProd = texto.substring(0, startIdx).trim();
                           detalleProd = texto.substring(startIdx + 1, texto.length - 1).trim();
                         }
+                        String codigoProd = codigosProdMap[nombreProd] ?? 'S/C';
+
                         return Padding(
-                          padding: const EdgeInsets.only(bottom: 6.0),
+                          padding: const EdgeInsets.only(bottom: 6.0, left: 8.0),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                '• $nombreProd (x$cant)', 
+                                '• [$codigoProd] $nombreProd (x$cant)', 
                                 style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
                               ),
                               if (detalleProd.isNotEmpty)
                                 Padding(
-                                  padding: const EdgeInsets.only(left: 12.0, top: 1.0),
+                                  padding: const EdgeInsets.only(left: 16.0, top: 1.0),
                                   child: Text(
                                     detalleProd, 
                                     style: const TextStyle(fontStyle: FontStyle.italic, fontSize: 11, color: Colors.grey),
@@ -1568,7 +1616,7 @@ class _VistaResumenProductosState extends State<VistaResumenProductos> {
 }
 
 // ==========================================
-// 7. EXPORTAR A PDF (CON REPORTES Y GESTIÓN DE INCIDENCIAS)
+// 7. EXPORTAR A PDF (CON CÓDIGOS DE CLIENTE Y PRODUCTO)
 // ==========================================
 class VistaExportarPdf extends StatefulWidget {
   const VistaExportarPdf({super.key});
@@ -1583,12 +1631,20 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
 
   Future<void> _generarReporteGeneralPdf() async {
     final db = await DatabaseHelper.instance.database;
+    
     final productosDb = await db.query('productos');
+    final clientesDb = await db.query('clientes');
+    
     if (!mounted) return;
 
-    Map<String, String> codigosMap = {};
+    Map<String, String> codigosProdMap = {};
     for (var prod in productosDb) {
-      codigosMap[prod['nombre'].toString().trim()] = prod['codigo'].toString().trim();
+      codigosProdMap[prod['nombre'].toString().trim()] = prod['codigo'].toString().trim();
+    }
+
+    Map<String, String> codigosClientMap = {};
+    for (var cli in clientesDb) {
+      codigosClientMap[cli['nombre'].toString().trim()] = cli['codigo'].toString().trim();
     }
 
     List<Map<String, dynamic>> pedidos;
@@ -1653,8 +1709,11 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
             widgets.add(pw.SizedBox(height: 6));
 
             for (var p in listaPedidos) {
+              String nombreCliente = p['cliente'].toString().trim();
+              String codigoCliente = codigosClientMap[nombreCliente] ?? 'S/C';
+
               widgets.add(
-                pw.Text('${p['numero_pedido']} - Cliente: ${p['cliente']}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 11)),
+                pw.Text('${p['numero_pedido']} - [$codigoCliente] $nombreCliente', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 11)),
               );
 
               String prodString = p['productos_json'].toString();
@@ -1678,7 +1737,7 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
                   detalleProd = texto.substring(startIdx + 1, texto.length - 1).trim();
                 }
 
-                String codigoProd = codigosMap[nombreProd] ?? 'S/C';
+                String codigoProd = codigosProdMap[nombreProd] ?? 'S/C';
 
                 widgets.add(
                   pw.Padding(
@@ -1735,6 +1794,12 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
 
   Future<void> _generarReporteConsolidadoIncidencias(String semana) async {
     final db = await DatabaseHelper.instance.database;
+    final clientesDb = await db.query('clientes');
+    Map<String, String> codigosClientMap = {};
+    for (var cli in clientesDb) {
+      codigosClientMap[cli['nombre'].toString().trim()] = cli['codigo'].toString().trim();
+    }
+
     final pedidos = await db.query(
       'pedidos', 
       where: 'semana LIKE ? AND gestionado = 1', 
@@ -1752,6 +1817,13 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
     final pdf = pw.Document();
     double totalGlobalTeorico = 0;
     double totalGlobalReal = 0;
+
+    // Obtenemos también productos por si necesitamos mapear en el consolidado
+    final productosDb = await db.query('productos');
+    Map<String, String> codigosProdMap = {};
+    for (var prod in productosDb) {
+      codigosProdMap[prod['nombre'].toString().trim()] = prod['codigo'].toString().trim();
+    }
 
     pdf.addPage(
       pw.MultiPage(
@@ -1777,9 +1849,49 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
             double real = (p['total_real'] as num).toDouble();
             double diferencia = real - teorico;
             String incidencia = p['incidencia']?.toString() ?? '';
+            String nombreCliente = p['cliente'].toString().trim();
+            String codigoCliente = codigosClientMap[nombreCliente] ?? 'S/C';
 
             totalGlobalTeorico += teorico;
             totalGlobalReal += real;
+
+            List<pw.Widget> detalleWidgets = [];
+            String prodString = p['productos_json'].toString();
+            List<String> items = prodString.split(';');
+            for (var item in items) {
+              if (item.trim().isEmpty) continue;
+              String texto = item.trim();
+              int cant = 1;
+              if (texto.contains('(x')) {
+                var splitCant = texto.split('(x');
+                texto = splitCant[0].trim();
+                try {
+                  cant = int.parse(splitCant[1].replaceAll(')', '').trim());
+                } catch (_) {}
+              }
+              String nombreProd = texto;
+              String detalleProd = '';
+              if (texto.contains('[') && texto.endsWith(']')) {
+                int startIdx = texto.lastIndexOf('[');
+                nombreProd = texto.substring(0, startIdx).trim();
+                detalleProd = texto.substring(startIdx + 1, texto.length - 1).trim();
+              }
+              String codigoProd = codigosProdMap[nombreProd] ?? 'S/C';
+
+              detalleWidgets.add(
+                pw.Padding(
+                  padding: const pw.EdgeInsets.only(left: 10, bottom: 2),
+                  child: pw.Row(
+                    children: [
+                      pw.Text('[$codigoProd] ', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
+                      pw.Expanded(
+                        child: pw.Text('$nombreProd (x$cant)${detalleProd.isNotEmpty ? ' [$detalleProd]' : ''}', style: const pw.TextStyle(fontSize: 10)),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }
 
             widgets.add(
               pw.Container(
@@ -1792,9 +1904,9 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
                 child: pw.Column(
                   crossAxisAlignment: pw.CrossAxisAlignment.start,
                   children: [
-                    pw.Text('Pedido: ${p['numero_pedido']} - Cliente: ${p['cliente']}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12)),
+                    pw.Text('Pedido: ${p['numero_pedido']} - [$codigoCliente] $nombreCliente', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12)),
                     pw.SizedBox(height: 4),
-                    pw.Text('Detalle: ${p['productos_json']}', style: const pw.TextStyle(fontSize: 10)),
+                    ...detalleWidgets,
                     pw.Divider(height: 8),
                     pw.Row(
                       mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
