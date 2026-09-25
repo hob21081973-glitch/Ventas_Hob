@@ -26,7 +26,7 @@ class AppVentasHob extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'App Ventas Hob',
+      title: 'APP VENTAS HOB',
       theme: ThemeData(primarySwatch: Colors.indigo),
       home: const MenuPrincipal(),
       debugShowCheckedModeBanner: false,
@@ -453,7 +453,6 @@ class _VistaCrearPedidoState extends State<VistaCrearPedido> {
                                           if (existenteIndex != -1) {
                                             mainState.productosEnCurso[existenteIndex]['cantidad']++;
                                           } else {
-                                            // Se inserta arriba (índice 0) el último agregado
                                             mainState.productosEnCurso.insert(0, {
                                               'nombre': p['nombre'],
                                               'precio': p['precio'],
@@ -810,7 +809,7 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
 
   void _mandarAEditar(Map<String, dynamic> pedido) async {
     List<Map<String, dynamic>> productosParsed = [];
-    String prodString = pedido['productos_json'];
+    String prodString = pedido['productos_json'].toString();
     
     List<String> items = prodString.split(';');
     for (var item in items) {
@@ -851,8 +850,8 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
     if (mainState != null) {
       mainState.cargarPedidoParaEditar(
         pedido['id'],
-        pedido['numero_pedido'],
-        pedido['cliente'],
+        pedido['numero_pedido'].toString(),
+        pedido['cliente'].toString(),
         productosParsed,
       );
     }
@@ -885,7 +884,7 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
             itemCount: pedidos.length,
             itemBuilder: (context, index) {
               final p = pedidos[index];
-              String prodString = p['productos_json'] ?? '';
+              String prodString = p['productos_json']?.toString() ?? '';
               List<String> itemsList = prodString.split(';');
               return Card(
                 margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -895,7 +894,7 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
-                        mainAxisAlignment: MainAxisAlignment.between,
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Expanded(
                             child: Text(
@@ -905,7 +904,7 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
                           ),
                           IconButton(
                             icon: const Icon(Icons.share, color: Colors.green, size: 20),
-                            onPressed: () => _enviarWhatsApp(p['cliente'], p['productos_json'], (p['total'] as num).toDouble()),
+                            onPressed: () => _enviarWhatsApp(p['cliente'].toString(), p['productos_json'].toString(), (p['total'] as num).toDouble()),
                             constraints: const BoxConstraints(),
                             padding: EdgeInsets.zero,
                           ),
@@ -955,7 +954,7 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
                       }),
                       const Divider(height: 12),
                       Row(
-                        mainAxisAlignment: MainAxisAlignment.between,
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
                             'Total: L ${(p['total'] as num).toStringAsFixed(2)}', 
@@ -1190,7 +1189,7 @@ class _VistaResumenProductosState extends State<VistaResumenProductos> {
                 preciosMap[prod['nombre'].toString().trim()] = (prod['precio'] as num).toDouble();
               }
               for (var p in pedidos) {
-                String prodString = p['productos_json'];
+                String prodString = p['productos_json'].toString();
                 List<String> items = prodString.split(';');
                 for (var item in items) {
                   if(item.trim().isEmpty) continue;
@@ -1308,7 +1307,7 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
               child: pw.Row(
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                 children: [
-                  pw.Text('Reporte General de Ventas', style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold)),
+                  pw.Text('Reporte General de Ventas - APP VENTAS HOB', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
                   pw.Text(DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now()), style: const pw.TextStyle(fontSize: 10)),
                 ],
               ),
@@ -1356,7 +1355,7 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
     Map<String, double> valorVentas = {};
 
     for (var p in pedidos) {
-      String prodString = p['productos_json'];
+      String prodString = p['productos_json'].toString();
       List<String> items = prodString.split(';');
       for (var item in items) {
         if (item.trim().isEmpty) continue;
@@ -1385,7 +1384,7 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
           return [
             pw.Header(
               level: 0,
-              child: pw.Text('Reporte Acumulado por Productos', style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold)),
+              child: pw.Text('Reporte Acumulado por Productos - APP VENTAS HOB', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
             ),
             pw.SizedBox(height: 10),
             pw.Table.fromTextArray(
@@ -1423,7 +1422,7 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
             children: [
               pw.Header(
                 level: 0,
-                child: pw.Text('Reporte de Entrega e Incidencias', style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold)),
+                child: pw.Text('Reporte de Entrega e Incidencias - APP VENTAS HOB', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
               ),
               pw.SizedBox(height: 10),
               pw.Text('Cliente: ${pedido['cliente']}', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
@@ -1459,7 +1458,7 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
               pw.Divider(height: 20),
               pw.Text('Incidencias / Comentarios:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
               pw.Container(
-                padding: const EdgeInsets.all(10),
+                padding: const pw.EdgeInsets.all(10),
                 decoration: pw.BoxDecoration(
                   border: pw.Border.all(color: PdfColors.grey400),
                   borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
