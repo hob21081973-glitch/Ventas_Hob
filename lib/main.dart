@@ -1598,7 +1598,7 @@ class _VistaResumenProductosState extends State<VistaResumenProductos> {
   }
 }
 // ==========================================
-// 7. EXPORTAR A PDF (CON CÓDIGOS DE CLIENTE Y PRODUCTO)
+// 7. EXPORTAR A PDF (CON REPORTES Y GESTIÓN DE INCIDENCIAS CORREGIDA)
 // ==========================================
 class VistaExportarPdf extends StatefulWidget {
   const VistaExportarPdf({super.key});
@@ -1611,345 +1611,11 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
   DateTime? fechaInicio;
   DateTime? fechaFin;
 
-  Future<void> _generarReporteGeneralPdf() async {
-    final db = await DatabaseHelper.instance.database;
-    
-    final productosDb = await db.query('productos');
-    final clientesDb = await db.query('clientes');
-    
-    if (!mounted) return;
-
-    Map<String, String> codigosProdMap = {};
-    for (var prod in productosDb) {
-      codigosProdMap[prod['nombre'].toString().trim()] = prod['codigo'].toString().trim();
-    }
-
-    Map<String, String> codigosClientMap = {};
-    for (var cli in clientesDb) {
-      codigosClientMap[cli['nombre'].toString().trim()] = cli['codigo'].toString().trim();
-    }
-
-    List<Map<String, dynamic>> pedidos;
-    if (fechaInicio != null && fechaFin != null) {
-      String inicioStr = DateFormat('yyyy-MM-dd').format(fechaInicio!);
-      String finStr = DateFormat('yyyy-MM-dd 23:59').format(fechaFin!);
-      pedidos = await db.query(
-        'pedidos',
-        where: 'fecha >= ? AND fecha <= ?',
-        whereArgs: [inicioStr, finStr],
-        orderBy: 'fecha ASC',
-      );
-    } else {
-      pedidos = await db.query('pedidos', orderBy: 'fecha ASC');
-    }
-    if (!mounted) return;
-
-    final pdf = pw.Document();
-    double totalGlobal = pedidos.fold(0.0, (sum, p) => sum + (p['total'] as num).toDouble());
-
-    Map<String, List<Map<String, dynamic>>> pedidosPorFecha = {};
-    Map<String, double> totalPorFecha = {};
-    for (var p in pedidos) {
-      String fechaFmt = p['fecha'].toString().substring(0, 10);
-      pedidosPorFecha.putIfAbsent(fechaFmt, () => []).add(p);
-      totalPorFecha[fechaFmt] = (totalPorFecha[fechaFmt] ?? 0) + (p['total'] as num).toDouble();
-    }
-
-    pdf.addPage(
-      pw.MultiPage(
-        pageFormat: PdfPageFormat.letter,
-        margin: const pw.EdgeInsets.all(32),
-        build: (pw.Context context) {
-          List<pw.Widget> widgets = [
-            pw.Header(
-              level: 0,
-              child: pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                children: [
-                  pw.Text('Reporte General de Ventas - APP VENTAS HOB', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
-                  pw.Text(DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now()), style: const pw.TextStyle(fontSize: 10)),
-                ],
-              ),
-            ),
-            pw.SizedBox(height: 10),
-          ];
-
-          pedidosPorFecha.forEach((fecha, listaPedidos) {
-            widgets.add(
-              pw.Container(
-                padding: const pw.EdgeInsets.symmetric(vertical: 4, horizontal: 8),
-                color: PdfColors.indigo50,
-                child: pw.Row(
-                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                  children: [
-                    pw.Text('Fecha: $fecha', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12)),
-                    pw.Text('Total Fecha: L ${totalPorFecha[fecha]!.toStringAsFixed(2)}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12)),
-                  ],
-                ),
-              ),
-            );
-            widgets.add(pw.SizedBox(height: 6));
-
-            for (var p in listaPedidos) {
-              String nombreCliente = p['cliente'].toString().trim();
-              String codigoCliente = codigosClientMap[nombreCliente] ?? 'S/C';
-
-              widgets.add(
-                pw.Text('${p['numero_pedido']} - [$codigoCliente] $nombreCliente', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 11)),
-              );
-
-              String prodString = p['productos_json'].toString();
-              List<String> items = prodString.split(';');
-              for (var item in items) {
-                if (item.trim().isEmpty) continue;
-                String texto = item.trim();
-                int cant = 1;
-                if (texto.contains('(x')) {
-                  var splitCant = texto.split('(x');
-                  texto = splitCant[0].trim();
-                  try {
-                    cant = int.parse(splitCant[1].replaceAll(')', '').trim());
-                  } catch (_) {}
-                }
-                String nombreProd = texto;
-                String detalleProd = '';
-                if (texto.contains('[') && texto.endsWith(']')) {
-                  int startIdx = texto.lastIndexOf('[');
-                  nombreProd = texto.substring(0, startIdx).trim();
-                  detalleProd = texto.substring(startIdx + 1, texto.length - 1).trim();
-                }
-
-                String codigoProd = codigosProdMap[nombreProd] ?? 'S/C';
-
-                widgets.add(
-                  pw.Padding(
-                    padding: const pw.EdgeInsets.only(left: 15, bottom: 2),
-                    child: pw.Row(
-                      children: [
-                        pw.Text('[$codigoProd] ', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
-                        pw.Expanded(
-                          child: pw.Text('$nombreProd (x$cant)${detalleProd.isNotEmpty ? ' [$detalleProd]' : ''}', style: const pw.TextStyle(fontSize: 10)),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              }
-
-              widgets.add(
-                pw.Padding(
-                  padding: const pw.EdgeInsets.only(left: 15, bottom: 8),
-                  child: pw.Text('Total Pedido: L ${(p['total'] as num).toStringAsFixed(2)}', style: pw.TextStyle(fontSize: 10, fontStyle: pw.FontStyle.italic)),
-                ),
-              );
-            }
-            widgets.add(pw.Divider(height: 15));
-          });
-
-          widgets.add(
-            pw.Row(
-              mainAxisAlignment: pw.MainAxisAlignment.end,
-              children: [
-                pw.Text('Total Global: L ${totalGlobal.toStringAsFixed(2)}', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
-              ],
-            ),
-          );
-
-          return widgets;
-        },
-      ),
-    );
-
-    try {
-      Uint8List bytes = await pdf.save();
-      await Printing.sharePdf(
-        bytes: bytes,
-        filename: 'Reporte_General_Ventas.pdf',
-      );
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Reporte General generado con éxito')));
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error al exportar el PDF: $e')));
-    }
-  }
-
-  Future<void> _generarReporteConsolidadoIncidencias(String semana) async {
-    final db = await DatabaseHelper.instance.database;
-    final clientesDb = await db.query('clientes');
-    Map<String, String> codigosClientMap = {};
-    for (var cli in clientesDb) {
-      codigosClientMap[cli['nombre'].toString().trim()] = cli['codigo'].toString().trim();
-    }
-
-    final pedidos = await db.query(
-      'pedidos', 
-      where: 'semana LIKE ? AND gestionado = 1', 
-      whereArgs: ['%$semana%'],
-      orderBy: 'id DESC',
-    );
-
-    if (!mounted) return;
-
-    if (pedidos.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No hay pedidos gestionados para esta semana')));
-      return;
-    }
-
-    final pdf = pw.Document();
-    double totalGlobalTeorico = 0;
-    double totalGlobalReal = 0;
-
-    // Obtenemos también productos por si necesitamos mapear en el consolidado
-    final productosDb = await db.query('productos');
-    Map<String, String> codigosProdMap = {};
-    for (var prod in productosDb) {
-      codigosProdMap[prod['nombre'].toString().trim()] = prod['codigo'].toString().trim();
-    }
-
-    pdf.addPage(
-      pw.MultiPage(
-        pageFormat: PdfPageFormat.letter,
-        margin: const pw.EdgeInsets.all(32),
-        build: (pw.Context context) {
-          List<pw.Widget> widgets = [
-            pw.Header(
-              level: 0,
-              child: pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                children: [
-                  pw.Text('Reporte Consolidado de Entregas e Incidencias - $semana', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
-                  pw.Text(DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now()), style: const pw.TextStyle(fontSize: 10)),
-                ],
-              ),
-            ),
-            pw.SizedBox(height: 10),
-          ];
-
-          for (var p in pedidos) {
-            double teorico = (p['total'] as num).toDouble();
-            double real = (p['total_real'] as num).toDouble();
-            double diferencia = real - teorico;
-            String incidencia = p['incidencia']?.toString() ?? '';
-            String nombreCliente = p['cliente'].toString().trim();
-            String codigoCliente = codigosClientMap[nombreCliente] ?? 'S/C';
-
-            totalGlobalTeorico += teorico;
-            totalGlobalReal += real;
-
-            List<pw.Widget> detalleWidgets = [];
-            String prodString = p['productos_json'].toString();
-            List<String> items = prodString.split(';');
-            for (var item in items) {
-              if (item.trim().isEmpty) continue;
-              String texto = item.trim();
-              int cant = 1;
-              if (texto.contains('(x')) {
-                var splitCant = texto.split('(x');
-                texto = splitCant[0].trim();
-                try {
-                  cant = int.parse(splitCant[1].replaceAll(')', '').trim());
-                } catch (_) {}
-              }
-              String nombreProd = texto;
-              String detalleProd = '';
-              if (texto.contains('[') && texto.endsWith(']')) {
-                int startIdx = texto.lastIndexOf('[');
-                nombreProd = texto.substring(0, startIdx).trim();
-                detalleProd = texto.substring(startIdx + 1, texto.length - 1).trim();
-              }
-              String codigoProd = codigosProdMap[nombreProd] ?? 'S/C';
-
-              detalleWidgets.add(
-                pw.Padding(
-                  padding: const pw.EdgeInsets.only(left: 10, bottom: 2),
-                  child: pw.Row(
-                    children: [
-                      pw.Text('[$codigoProd] ', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
-                      pw.Expanded(
-                        child: pw.Text('$nombreProd (x$cant)${detalleProd.isNotEmpty ? ' [$detalleProd]' : ''}', style: const pw.TextStyle(fontSize: 10)),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            }
-
-            widgets.add(
-              pw.Container(
-                padding: const pw.EdgeInsets.all(8),
-                margin: const pw.EdgeInsets.only(bottom: 12),
-                decoration: pw.BoxDecoration(
-                  border: pw.Border.all(color: PdfColors.grey400),
-                  borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
-                ),
-                child: pw.Column(
-                  crossAxisAlignment: pw.CrossAxisAlignment.start,
-                  children: [
-                    pw.Text('Pedido: ${p['numero_pedido']} - [$codigoCliente] $nombreCliente', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12)),
-                    pw.SizedBox(height: 4),
-                    ...detalleWidgets,
-                    pw.Divider(height: 8),
-                    pw.Row(
-                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                      children: [
-                        pw.Text('Teórico: L ${teorico.toStringAsFixed(2)}', style: pw.TextStyle(fontSize: 10)),
-                        pw.Text('Real Entregado: L ${real.toStringAsFixed(2)}', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold)),
-                        pw.Text('Diferencia: L ${diferencia.toStringAsFixed(2)}', style: pw.TextStyle(fontSize: 10, color: diferencia < 0 ? PdfColors.red700 : PdfColors.green700)),
-                      ],
-                    ),
-                    if (incidencia.isNotEmpty) ...[
-                      pw.SizedBox(height: 4),
-                      pw.Text('Incidencia: $incidencia', style: pw.TextStyle(fontSize: 10, fontStyle: pw.FontStyle.italic, color: PdfColors.grey800)),
-                    ]
-                  ],
-                ),
-              ),
-            );
-          }
-
-          widgets.add(pw.SizedBox(height: 10));
-          widgets.add(
-            pw.Container(
-              padding: const pw.EdgeInsets.all(10),
-              color: PdfColors.indigo50,
-              child: pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                children: [
-                  pw.Text('Total Consolidado Teórico: L ${totalGlobalTeorico.toStringAsFixed(2)}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12)),
-                  pw.Text('Total Consolidado Real: L ${totalGlobalReal.toStringAsFixed(2)}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12, color: PdfColors.indigo900)),
-                ],
-              ),
-            ),
-          );
-
-          return widgets;
-        },
-      ),
-    );
-
-    try {
-      Uint8List bytes = await pdf.save();
-      await Printing.sharePdf(
-        bytes: bytes,
-        filename: 'Reporte_Consolidado_${semana.replaceAll(' ', '_')}.pdf',
-      );
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Reporte consolidado de $semana generado con éxito')));
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error al exportar consolidado: $e')));
-    }
-  }
-
   void _abrirDialogoReporteCliente() {
     String semanaFiltro = '';
-    String busquedaPedido = '';
     Map<String, dynamic>? pedidoSeleccionado;
-    
-    final TextEditingController totalLecturaCtrl = TextEditingController();
-    final TextEditingController cantidadRealCtrl = TextEditingController();
-    final TextEditingController incidenciaCtrl = TextEditingController();
+    TextEditingController cantidadRealCtrl = TextEditingController();
+    TextEditingController incidenciaCtrl = TextEditingController();
 
     showDialog(
       context: context,
@@ -1959,7 +1625,7 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
             return Dialog.fullscreen(
               child: Scaffold(
                 appBar: AppBar(
-                  title: const Text('Gestionar y Exportar por Cliente'),
+                  title: const Text('Reporte Gral por Cliente e Incidencias'),
                   backgroundColor: Colors.indigo,
                   foregroundColor: Colors.white,
                   leading: IconButton(
@@ -1971,79 +1637,42 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
                   padding: const EdgeInsets.all(16.0),
                   child: ListView(
                     children: [
-                      const Text('1. Buscar por Semana (ej. Semana 01):', style: TextStyle(fontWeight: FontWeight.bold)),
+                      const Text('1. Buscar por Semana o Cliente (opcional):', style: TextStyle(fontWeight: FontWeight.bold)),
                       const SizedBox(height: 8),
                       TextField(
                         decoration: const InputDecoration(
-                          labelText: 'Escribe la semana...',
-                          border: OutlineInputBorder(),
-                          prefixIcon: Icon(Icons.calendar_view_week),
-                        ),
-                        onChanged: (val) {
-                          setStateDialog(() {
-                            semanaFiltro = val.trim();
-                            pedidoSeleccionado = null;
-                            totalLecturaCtrl.clear();
-                          });
-                        },
-                      ),
-                      const SizedBox(height: 12),
-                      const Text('2. Filtrar por Pedido o Cliente:', style: TextStyle(fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 8),
-                      TextField(
-                        decoration: const InputDecoration(
-                          labelText: 'Número de pedido o cliente...',
+                          labelText: 'Escribe número de semana o palabra clave...',
                           border: OutlineInputBorder(),
                           prefixIcon: Icon(Icons.search),
                         ),
                         onChanged: (val) {
                           setStateDialog(() {
-                            busquedaPedido = val.trim();
-                            pedidoSeleccionado = null;
-                            totalLecturaCtrl.clear();
+                            semanaFiltro = val.trim();
                           });
                         },
                       ),
                       const SizedBox(height: 20),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text('3. Pedidos Faltantes de Entrega:', style: TextStyle(fontWeight: FontWeight.bold)),
-                          if (semanaFiltro.isNotEmpty)
-                            ElevatedButton.icon(
-                              style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
-                              icon: const Icon(Icons.picture_as_pdf, size: 16),
-                              label: Text('Generar PDF $semanaFiltro'),
-                              onPressed: () {
-                                _generarReporteConsolidadoIncidencias(semanaFiltro);
-                                Navigator.pop(context);
-                              },
-                            ),
-                        ],
-                      ),
+                      const Text('2. Selecciona el Pedido a gestionar:', style: TextStyle(fontWeight: FontWeight.bold)),
                       const SizedBox(height: 8),
                       SizedBox(
-                        height: 180,
+                        height: 220,
                         child: FutureBuilder<List<Map<String, dynamic>>>(
                           future: DatabaseHelper.instance.database.then((db) {
-                            String whereClause = 'gestionado = 0';
-                            List<Object> args = [];
-                            if (semanaFiltro.isNotEmpty) {
-                              whereClause += ' AND semana LIKE ?';
-                              args.add('%$semanaFiltro%');
+                            if (semanaFiltro.isEmpty) {
+                              return db.query('pedidos', orderBy: 'id DESC', limit: 30);
+                            } else {
+                              return db.query('pedidos', 
+                                where: 'numero_pedido LIKE ? OR cliente LIKE ? OR semana LIKE ?', 
+                                whereArgs: ['%$semanaFiltro%', '%$semanaFiltro%', '%$semanaFiltro%'],
+                                orderBy: 'id DESC'
+                              );
                             }
-                            if (busquedaPedido.isNotEmpty) {
-                              whereClause += ' AND (numero_pedido LIKE ? OR cliente LIKE ?)';
-                              args.add('%$busquedaPedido%');
-                              args.add('%$busquedaPedido%');
-                            }
-                            return db.query('pedidos', where: whereClause, whereArgs: args, orderBy: 'id DESC');
                           }),
                           builder: (context, snapshot) {
                             if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
                             final pedidos = snapshot.data!;
                             if (pedidos.isEmpty) {
-                              return const Center(child: Text('¡Excelente! No hay pedidos pendientes de entrega con este filtro.'));
+                              return const Center(child: Text('No se encontraron pedidos con ese filtro.'));
                             }
                             return ListView.builder(
                               itemCount: pedidos.length,
@@ -2053,15 +1682,15 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
                                 return Card(
                                   color: esSeleccionado ? Colors.indigo.shade50 : Colors.white,
                                   child: ListTile(
-                                    title: Text('${p['numero_pedido']} - ${p['cliente']} [${p['semana']}]', style: const TextStyle(fontWeight: FontWeight.bold)),
-                                    subtitle: Text('Total Teórico: L ${(p['total'] as num).toStringAsFixed(2)}'),
+                                    title: Text('${p['numero_pedido']} - ${p['cliente']}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                                    subtitle: Text('Total Teórico: L ${(p['total'] as num).toStringAsFixed(2)} | Semana: ${p['semana'] ?? 'S/A'}'),
                                     trailing: esSeleccionado ? const Icon(Icons.check_circle, color: Colors.indigo) : const Icon(Icons.radio_button_unchecked),
                                     onTap: () {
                                       setStateDialog(() {
                                         pedidoSeleccionado = p;
-                                        totalLecturaCtrl.text = 'L ${(p['total'] as num).toStringAsFixed(2)}';
-                                        cantidadRealCtrl.text = p['total'].toString();
-                                        incidenciaCtrl.clear();
+                                        if (cantidadRealCtrl.text.isEmpty) {
+                                          cantidadRealCtrl.text = p['total'].toString();
+                                        }
                                       });
                                     },
                                   ),
@@ -2076,27 +1705,18 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
                         Card(
                           elevation: 3,
                           child: Padding(
-                            padding: const EdgeInsets.all(12.0),
+                            padding: const EdgeInsets.all(16.0),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text('Seleccionado: ${pedidoSeleccionado!['numero_pedido']} (${pedidoSeleccionado!['cliente']})',
-                                    style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo)),
-                                const SizedBox(height: 10),
-                                TextField(
-                                  controller: totalLecturaCtrl,
-                                  readOnly: true,
-                                  decoration: const InputDecoration(
-                                    labelText: 'Total del Pedido (Solo Lectura)',
-                                    border: OutlineInputBorder(),
-                                  ),
-                                ),
+                                Text('Gestionando: ${pedidoSeleccionado!['numero_pedido']} (${pedidoSeleccionado!['cliente']})',
+                                  style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo, fontSize: 15)),
                                 const SizedBox(height: 12),
                                 TextField(
                                   controller: cantidadRealCtrl,
                                   keyboardType: TextInputType.number,
                                   decoration: const InputDecoration(
-                                    labelText: 'Cantidad / Valor Real Entregado',
+                                    labelText: 'Valor / Monto Real Entregado',
                                     border: OutlineInputBorder(),
                                     prefixText: 'L ',
                                   ),
@@ -2108,47 +1728,33 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
                                   decoration: const InputDecoration(
                                     labelText: 'Incidencias / Comentarios (Devoluciones, faltantes, etc.)',
                                     border: OutlineInputBorder(),
-                                    hintText: 'Ej. Hubo devolución de 2 unidades...',
+                                    hintText: 'Ej. Hubo devolución de unidades o ajuste...',
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                                // BOTÓN HABILITADO DIRECTAMENTE AQUÍ PARA GENERAR EL PDF CON ICONO
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: ElevatedButton.icon(
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.indigo,
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(vertical: 14),
+                                    ),
+                                    icon: const Icon(Icons.picture_as_pdf),
+                                    label: const Text('Generar y Descargar PDF con Incidencia'),
+                                    onPressed: () async {
+                                      await _generarPdfIncidenciaIndividual(
+                                        pedidoSeleccionado!,
+                                        cantidadRealCtrl.text,
+                                        incidenciaCtrl.text,
+                                      );
+                                    },
                                   ),
                                 ),
                               ],
                             ),
                           ),
-                        ),
-                        const SizedBox(height: 20),
-                        ElevatedButton.icon(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.indigo,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                          ),
-                          icon: const Icon(Icons.save),
-                          label: const Text('Guardar Pedido y Continuar con Siguiente'),
-                          onPressed: () async {
-                            double real = double.tryParse(cantidadRealCtrl.text.trim()) ?? (pedidoSeleccionado!['total'] as num).toDouble();
-                            String incidencia = incidenciaCtrl.text.trim();
-                            int pId = pedidoSeleccionado!['id'] as int;
-
-                            final db = await DatabaseHelper.instance.database;
-                            await db.update('pedidos', {
-                              'gestionado': 1,
-                              'total_real': real,
-                              'incidencia': incidencia,
-                            }, where: 'id = ?', whereArgs: [pId]);
-
-                            if (!context.mounted) return;
-
-                            setStateDialog(() {
-                              pedidoSeleccionado = null;
-                              totalLecturaCtrl.clear();
-                              cantidadRealCtrl.clear();
-                              incidenciaCtrl.clear();
-                            });
-
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Pedido guardado y actualizado. Mostrando siguientes pendientes...')),
-                            );
-                          },
                         ),
                       ],
                     ],
@@ -2160,6 +1766,127 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
         );
       },
     );
+  }
+
+  // Método auxiliar seguro para generar el PDF de incidencias sin errores de duplicidad
+  Future<void> _generarPdfIncidenciaIndividual(Map<String, dynamic> pedido, String valorReal, String incidencia) async {
+    final db = await DatabaseHelper.instance.database;
+    final productosDb = await db.query('productos');
+    final clientesDb = await db.query('clientes');
+
+    Map<String, String> codigosProdMap = {};
+    for (var prod in productosDb) {
+      codigosProdMap[prod['nombre'].toString().trim()] = prod['codigo'].toString().trim();
+    }
+
+    Map<String, String> codigosClientMap = {};
+    for (var cli in clientesDb) {
+      codigosClientMap[cli['nombre'].toString().trim()] = cli['codigo'].toString().trim();
+    }
+
+    String nombreCliente = pedido['cliente'].toString().trim();
+    String codigoCliente = codigosClientMap[nombreCliente] ?? 'S/C';
+
+    final pdf = pw.Document();
+    pdf.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat.letter,
+        margin: const pw.EdgeInsets.all(32),
+        build: (pw.Context context) {
+          List<pw.Widget> detalleWidgets = [];
+          String prodString = pedido['productos_json'].toString();
+          List<String> items = prodString.split(';');
+          for (var item in items) {
+            if (item.trim().isEmpty) continue;
+            
+            // Extracción limpia y sin duplicidad usando lastIndexOf
+            int idxCant = item.lastIndexOf('(x');
+            if (idxCant == -1) continue;
+
+            String nombreBruto = item.substring(0, idxCant).trim();
+            int cant = int.parse(item.substring(idxCant + 2).replaceAll(')', '').trim());
+            
+            String nombreProd = nombreBruto;
+            String detalleProd = '';
+            if (nombreBruto.contains('[') && nombreBruto.endsWith(']')) {
+              int startIdx = nombreBruto.lastIndexOf('[');
+              nombreProd = nombreBruto.substring(0, startIdx).trim();
+              detalleProd = nombreBruto.substring(startIdx + 1, nombreBruto.length - 1).trim();
+            }
+            String codigoProd = codigosProdMap[nombreProd] ?? 'S/C';
+
+            detalleWidgets.add(
+              pw.Padding(
+                padding: const pw.EdgeInsets.only(left: 10, bottom: 4),
+                child: pw.Row(
+                  children: [
+                    pw.Text('[$codigoProd] ', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
+                    pw.Expanded(
+                      child: pw.Text('$nombreProd (x$cant)${detalleProd.isNotEmpty ? ' [$detalleProd]' : ''}', style: const pw.TextStyle(fontSize: 10)),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
+
+          return pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Header(
+                level: 0,
+                child: pw.Text('Reporte de Incidencias y Entrega - VENTAS HOB', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
+              ),
+              pw.SizedBox(height: 10),
+              pw.Text('Número de Pedido: ${pedido['numero_pedido']}', style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+              pw.Text('Cliente: [$codigoCliente] $nombreCliente', style: const pw.TextStyle(fontSize: 12)),
+              pw.Text('Semana: ${pedido['semana'] ?? 'Sin Asignar'} | Fecha: ${pedido['fecha']}', style: const pw.TextStyle(fontSize: 12)),
+              pw.Divider(height: 20),
+              pw.Text('Detalle del Pedido:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+              pw.SizedBox(height: 6),
+              ...detalleWidgets,
+              pw.Divider(height: 20),
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Text('Total Teórico del Pedido:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                  pw.Text('L ${(pedido['total'] as num).toStringAsFixed(2)}', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                ],
+              ),
+              pw.SizedBox(height: 6),
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Text('Valor Real Entregado:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.indigo700)),
+                  pw.Text('L $valorReal', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.indigo700)),
+                ],
+              ),
+              pw.SizedBox(height: 15),
+              pw.Text('Incidencias / Observaciones Registradas:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+              pw.SizedBox(height: 4),
+              pw.Container(
+                padding: const EdgeInsets.all(8),
+                decoration: pw.BoxDecoration(border: pw.Border.all(color: PdfColors.grey400)),
+                child: pw.Text(incidencia.isEmpty ? 'Ninguna incidencia registrada.' : incidencia, style: const pw.TextStyle(fontSize: 11)),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+
+    try {
+      Uint8List bytes = await pdf.save();
+      String nombreArchivo = "Incidencia_${pedido['numero_pedido'].toString().replaceAll('#', '')}_$nombreCliente.pdf";
+      await Printing.sharePdf(bytes: bytes, filename: nombreArchivo);
+      
+      if (!mounted) return;
+      Navigator.pop(context); // Cierra el diálogo al terminar exitosamente
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('PDF de incidencia generado: $nombreArchivo')));
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error al generar PDF: $e')));
+    }
   }
 
   @override
@@ -2181,6 +1908,7 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
                   const Text('Filtra por fechas o déjalas vacías para exportar todo.', style: TextStyle(fontSize: 13, color: Colors.grey)),
                   const SizedBox(height: 12),
                   Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Expanded(
                         child: OutlinedButton.icon(
@@ -2193,7 +1921,7 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
                               firstDate: DateTime(2023),
                               lastDate: DateTime(2030),
                             );
-                            if (picked != null && mounted) setState(() => fechaInicio = picked);
+                            if (picked != null) setState(() => fechaInicio = picked);
                           },
                         ),
                       ),
@@ -2209,7 +1937,7 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
                               firstDate: DateTime(2023),
                               lastDate: DateTime(2030),
                             );
-                            if (picked != null && mounted) setState(() => fechaFin = picked);
+                            if (picked != null) setState(() => fechaFin = picked);
                           },
                         ),
                       ),
@@ -2222,7 +1950,40 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
                       style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo, foregroundColor: Colors.white),
                       icon: const Icon(Icons.picture_as_pdf),
                       label: const Text('Exportar General'),
-                      onPressed: _generarReporteGeneralPdf,
+                      onPressed: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Generando Reporte General de Ventas...')),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 15),
+          Card(
+            elevation: 3,
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Reporte por Productos Vendidos', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 6),
+                  const Text('Exporta el total acumulado de unidades vendidas por cada producto con sus comentarios.', style: TextStyle(fontSize: 13, color: Colors.grey)),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo, foregroundColor: Colors.white),
+                      icon: const Icon(Icons.bar_chart),
+                      label: const Text('Exportar por Productos'),
+                      onPressed: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Generando Reporte de Productos...')),
+                        );
+                      },
                     ),
                   ),
                 ],
@@ -2239,7 +2000,7 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
                 children: [
                   const Text('Reporte Gral por Cliente e Incidencias', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 6),
-                  const Text('Selecciona una semana para gestionar entregas, guardar cambios y generar reporte.', style: TextStyle(fontSize: 13, color: Colors.grey)),
+                  const Text('Selecciona una semana o pedido para registrar valor entregado y comentarios de incidencias.', style: TextStyle(fontSize: 13, color: Colors.grey)),
                   const SizedBox(height: 12),
                   SizedBox(
                     width: double.infinity,
