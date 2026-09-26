@@ -1865,7 +1865,7 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
               pw.Text('Incidencias / Observaciones Registradas:', style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
               pw.SizedBox(height: 4),
               pw.Container(
-                padding: const EdgeInsets.all(8),
+                padding: const pw.EdgeInsets.all(8),
                 decoration: pw.BoxDecoration(border: pw.Border.all(color: PdfColors.grey400)),
                 child: pw.Text(incidencia.isEmpty ? 'Ninguna incidencia registrada.' : incidencia, style: const pw.TextStyle(fontSize: 11)),
               ),
