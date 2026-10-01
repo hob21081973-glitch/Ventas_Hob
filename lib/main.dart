@@ -1628,7 +1628,7 @@ class _VistaResumenProductosState extends State<VistaResumenProductos> {
 }
 
 // ==========================================
-// 7. EXPORTAR A PDF (Corregido y Optimizado)
+// 7. EXPORTAR A PDF (Definitivo corregido)
 // ==========================================
 class VistaExportarPdf extends StatefulWidget {
   const VistaExportarPdf({super.key});
@@ -1641,7 +1641,6 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
   DateTime? fechaInicio;
   DateTime? fechaFin;
 
-  // Función para exportar el Reporte General con formato estricto (Ordenado de más reciente a más antigua y fecha sin hora)
   Future<void> _exportarGeneralPdf() async {
     final db = await DatabaseHelper.instance.database;
     final clientesDb = await db.query('clientes');
@@ -1651,7 +1650,6 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
       codigosClientMap[cli['nombre'].toString().trim()] = cli['codigo'].toString().trim();
     }
 
-    // Ordenados de más reciente a más antigua (DESC)
     final pedidos = await db.query('pedidos', orderBy: 'fecha DESC, id DESC');
 
     final pdf = pw.Document();
@@ -1671,7 +1669,6 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
               data: pedidos.map((p) {
                 String nombreCliente = p['cliente'].toString().trim();
                 String codigoCliente = codigosClientMap[nombreCliente] ?? 'S/C';
-                // Fecha sin la hora (primeros 10 caracteres: YYYY-MM-DD)
                 String fechaSinHora = p['fecha'].toString().substring(0, 10);
 
                 return [
@@ -1726,7 +1723,7 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
                 ),
                 body: Padding(
                   padding: const EdgeInsets.all(16.0),
-                  child: Column( // Usamos Column con Expanded para ocupar toda la pantalla completa
+                  child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text('1. Buscar por Semana o Cliente (opcional):', style: TextStyle(fontWeight: FontWeight.bold)),
@@ -1747,7 +1744,6 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
                       const Text('2. Selecciona el Pedido a gestionar:', style: TextStyle(fontWeight: FontWeight.bold)),
                       const SizedBox(height: 8),
                       
-                      // LISTA EXPANDIDA PARA OCUPAR TODO EL ALTO DISPONIBLE DE LA PANTALLA
                       Expanded(
                         child: FutureBuilder<List<Map<String, dynamic>>>(
                           future: DatabaseHelper.instance.database.then((db) {
@@ -1906,7 +1902,6 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
             }
             String codigoProd = codigosProdMap[nombreProd] ?? 'S/C';
 
-            // Comentario del producto corregido sin espacios inválidos en la interpolación
             detalleWidgets.add(
               pw.Padding(
                 padding: const pw.EdgeInsets.only(left: 10, bottom: 4),
@@ -1931,6 +1926,8 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
                 ),
               ),
             );
+          }
+
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
