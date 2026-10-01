@@ -1628,7 +1628,7 @@ class _VistaResumenProductosState extends State<VistaResumenProductos> {
 }
 
 // ==========================================
-// 7. EXPORTAR A PDF (Actualizado y Optimizado)
+// 7. EXPORTAR A PDF (Corregido y Optimizado)
 // ==========================================
 class VistaExportarPdf extends StatefulWidget {
   const VistaExportarPdf({super.key});
@@ -1906,7 +1906,7 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
             }
             String codigoProd = codigosProdMap[nombreProd] ?? 'S/C';
 
-            // Comentario del producto alineado a la izquierda con sangría respecto al código
+            // Comentario del producto corregido sin espacios inválidos en la interpolación
             detalleWidgets.add(
               pw.Padding(
                 padding: const pw.EdgeInsets.only(left: 10, bottom: 4),
