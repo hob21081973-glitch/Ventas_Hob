@@ -220,11 +220,11 @@ class MenuPrincipalState extends State<MenuPrincipal> {
         children: const [
           VistaCrearPedido(),
           VistaHistorialPedidos(),
+          VistaGestionClientes(),
+          VistaGestionProductos(),
           VistaResumenGeneral(),
           VistaResumenProductos(),
           VistaExportarPdf(),
-          VistaGestionClientes(),
-          VistaGestionProductos(),
         ],
       ),
       bottomNavigationBar: BottomNavigationBar(
