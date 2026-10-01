@@ -1347,7 +1347,7 @@ class _VistaGestionProductosState extends State<VistaGestionProductos> {
                     children: [
                       Text(
                         '[${prod['codigo']}] ${prod['nombre']}', 
-                        style: const pw.TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+                        style: const pw.TextStyle(fontSize: 10, pw.fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 6),
                       Text(
