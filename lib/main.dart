@@ -1931,8 +1931,6 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
                 ),
               ),
             );
-          }
-
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
