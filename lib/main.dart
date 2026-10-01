@@ -1346,8 +1346,8 @@ class _VistaGestionProductosState extends State<VistaGestionProductos> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '[$ {prod['codigo']}] ${prod['nombre']}', 
-                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                        '[${prod['codigo']}] ${prod['nombre']}', 
+                        style: const pw.TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 6),
                       Text(
