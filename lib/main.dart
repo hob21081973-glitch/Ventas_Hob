@@ -1628,7 +1628,7 @@ class _VistaResumenProductosState extends State<VistaResumenProductos> {
 }
 
 // ==========================================
-// 7. EXPORTAR A PDF (Definitivo corregido)
+// 7. EXPORTAR A PDF (Definitivo y Limpio)
 // ==========================================
 class VistaExportarPdf extends StatefulWidget {
   const VistaExportarPdf({super.key});
