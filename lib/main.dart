@@ -220,11 +220,11 @@ class MenuPrincipalState extends State<MenuPrincipal> {
         children: const [
           VistaCrearPedido(),
           VistaHistorialPedidos(),
-          VistaGestionClientes(),
-          VistaGestionProductos(),
           VistaResumenGeneral(),
           VistaResumenProductos(),
           VistaExportarPdf(),
+          VistaGestionClientes(),
+          VistaGestionProductos(),
         ],
       ),
       bottomNavigationBar: BottomNavigationBar(
@@ -531,7 +531,7 @@ class _VistaCrearPedidoState extends State<VistaCrearPedido> {
         title: const Text('Comentario / Detalle'),
         content: TextField(
           controller: comCtrl,
-          decoration: const InputDecoration(labelText: 'Ej. Color rojo, Talla L, Fragancia vainilla...'),
+          decoration: const InputDecoration(labelText: 'Ej.'),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
@@ -664,7 +664,7 @@ class _VistaCrearPedidoState extends State<VistaCrearPedido> {
             GestureDetector(
               onTap: _abrirBuscadorClientes,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                 decoration: BoxDecoration(
                   border: Border.all(color: Colors.indigo.shade300, width: 1.5),
                   borderRadius: BorderRadius.circular(8),
@@ -676,7 +676,7 @@ class _VistaCrearPedidoState extends State<VistaCrearPedido> {
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        mainState?.clienteEnCurso ?? 'Toca aquí para buscar y seleccionar cliente...',
+                        mainState?.clienteEnCurso ?? 'Cliente...',
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: mainState?.clienteEnCurso != null ? FontWeight.bold : FontWeight.normal,
@@ -688,11 +688,11 @@ class _VistaCrearPedidoState extends State<VistaCrearPedido> {
                 ),
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
             GestureDetector(
               onTap: _abrirBuscadorProductos,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                 decoration: BoxDecoration(
                   border: Border.all(color: Colors.indigo.shade300, width: 1.5),
                   borderRadius: BorderRadius.circular(8),
@@ -704,7 +704,7 @@ class _VistaCrearPedidoState extends State<VistaCrearPedido> {
                     SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        'Toca aquí para buscar y agregar productos...',
+                        'Productos...',
                         style: TextStyle(fontSize: 14, color: Colors.black87, fontWeight: FontWeight.w500),
                       ),
                     ),
@@ -776,7 +776,7 @@ class _VistaCrearPedidoState extends State<VistaCrearPedido> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('Total del Pedido:', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                  const Text('Total Pedido:', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
                   Text('L ${totalActual.toStringAsFixed(2)}', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Colors.indigo)),
                 ],
               ),
