@@ -1294,14 +1294,14 @@ class _VistaGestionClientesState extends State<VistaGestionClientes> {
 // ==========================================
 class VistaGestionProductos extends StatefulWidget {
   const VistaGestionProductos({super.key});
-
+  
   @override
   State<VistaGestionProductos> createState() => _VistaGestionProductosState();
 }
 
 class _VistaGestionProductosState extends State<VistaGestionProductos> {
   bool sincronizando = false;
-
+  
   Future<void> _sincronizar() async {
     setState(() => sincronizando = true);
     try {
@@ -1319,7 +1319,7 @@ class _VistaGestionProductosState extends State<VistaGestionProductos> {
       if(mounted) setState(() => sincronizando = false);
     }
   }
-
+  
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -1336,11 +1336,29 @@ class _VistaGestionProductosState extends State<VistaGestionProductos> {
           if(lista.isEmpty) return const Center(child: Text('Presiona el botón inferior para sincronizar Productos.'));
           return ListView.builder(
             itemCount: lista.length,
-            itemBuilder: (context, i) => ListTile(
-              dense: true,
-              title: Text('Cod: ${lista[i]['codigo']}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.indigo)),
-              subtitle: Text('${lista[i]['nombre']} - Precio: L ${(lista[i]['precio'] as num).toStringAsFixed(2)}', style: const TextStyle(fontSize: 13)),
-            ),
+            itemBuilder: (context, i) {
+              final prod = lista[i];
+              return Card(
+                margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                child: Padding(
+                  padding: const EdgeInsets.all(12.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '[$ {prod['codigo']}] ${prod['nombre']}', 
+                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Precio: L ${(prod['precio'] as num).toStringAsFixed(2)}', 
+                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.indigo),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
           );
         },
       ),
@@ -1443,7 +1461,8 @@ class _VistaResumenProductosState extends State<VistaResumenProductos> {
           
           String nombreLimpio = nombreBruto;
           if (nombreBruto.contains('[')) {
-            nombreLimpio = nombreBruto.substring(0, nombreBruto.lastIndexOf('[')).trim();
+            int startIdx = nombreBruto.lastIndexOf('[');
+            nombreLimpio = nombreBruto.substring(0, startIdx).trim();
           }
 
           conteoUnidades[nombreLimpio] = (conteoUnidades[nombreLimpio] ?? 0) + cant;
@@ -1542,7 +1561,8 @@ class _VistaResumenProductosState extends State<VistaResumenProductos> {
                     
                     String nombreLimpio = nombreBruto;
                     if (nombreBruto.contains('[')) {
-                      nombreLimpio = nombreBruto.substring(0, nombreBruto.lastIndexOf('[')).trim();
+                      int startIdx = nombreBruto.lastIndexOf('[');
+                      nombreLimpio = nombreBruto.substring(0, startIdx).trim();
                     }
 
                     conteoUnidades[nombreLimpio] = (conteoUnidades[nombreLimpio] ?? 0) + cant;
@@ -1586,7 +1606,6 @@ class _VistaResumenProductosState extends State<VistaResumenProductos> {
                     else
                       ...listaOrdenadaUnidades.map((e) => ListTile(
                         title: Text(e.key, style: const TextStyle(fontSize: 15)),
-                        // Se quita la palabra "Unidades:", fuente más grande y destacada
                         trailing: Text('${e.value}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.indigo)),
                       )),
                   ] else ...[
@@ -1609,7 +1628,7 @@ class _VistaResumenProductosState extends State<VistaResumenProductos> {
 }
 
 // ==========================================
-// 7. EXPORTAR A PDF (Sin duplicados y con Reporte General optimizado)
+// 7. EXPORTAR A PDF (Actualizado y Optimizado)
 // ==========================================
 class VistaExportarPdf extends StatefulWidget {
   const VistaExportarPdf({super.key});
@@ -1622,10 +1641,18 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
   DateTime? fechaInicio;
   DateTime? fechaFin;
 
-  // Función para exportar el Reporte General con Printing.sharePdf para guardar/compartir libremente
+  // Función para exportar el Reporte General con formato estricto (Ordenado de más reciente a más antigua y fecha sin hora)
   Future<void> _exportarGeneralPdf() async {
     final db = await DatabaseHelper.instance.database;
-    final pedidos = await db.query('pedidos', orderBy: 'id DESC');
+    final clientesDb = await db.query('clientes');
+
+    Map<String, String> codigosClientMap = {};
+    for (var cli in clientesDb) {
+      codigosClientMap[cli['nombre'].toString().trim()] = cli['codigo'].toString().trim();
+    }
+
+    // Ordenados de más reciente a más antigua (DESC)
+    final pedidos = await db.query('pedidos', orderBy: 'fecha DESC, id DESC');
 
     final pdf = pw.Document();
     pdf.addPage(
@@ -1636,17 +1663,21 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
           return [
             pw.Header(
               level: 0,
-              child: pw.Text('Reporte General de Ventas - APP VENTAS HOB', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
+              child: pw.Text('Reporte General de Ventas - VENTAS HOB', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
             ),
             pw.SizedBox(height: 10),
             pw.Table.fromTextArray(
-              headers: ['N° Pedido', 'Cliente', 'Fecha', 'Semana', 'Total'],
+              headers: ['N° Pedido', 'Cliente', 'Fecha', 'Total'],
               data: pedidos.map((p) {
+                String nombreCliente = p['cliente'].toString().trim();
+                String codigoCliente = codigosClientMap[nombreCliente] ?? 'S/C';
+                // Fecha sin la hora (primeros 10 caracteres: YYYY-MM-DD)
+                String fechaSinHora = p['fecha'].toString().substring(0, 10);
+
                 return [
                   p['numero_pedido'].toString(),
-                  p['cliente'].toString(),
-                  p['fecha'].toString(),
-                  p['semana']?.toString() ?? 'S/A',
+                  '[$codigoCliente] $nombreCliente',
+                  fechaSinHora,
                   'L ${(p['total'] as num).toStringAsFixed(2)}',
                 ];
               }).toList(),
@@ -1695,7 +1726,8 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
                 ),
                 body: Padding(
                   padding: const EdgeInsets.all(16.0),
-                  child: ListView(
+                  child: Column( // Usamos Column con Expanded para ocupar toda la pantalla completa
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text('1. Buscar por Semana o Cliente (opcional):', style: TextStyle(fontWeight: FontWeight.bold)),
                       const SizedBox(height: 8),
@@ -1711,20 +1743,21 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
                           });
                         },
                       ),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: 16),
                       const Text('2. Selecciona el Pedido a gestionar:', style: TextStyle(fontWeight: FontWeight.bold)),
                       const SizedBox(height: 8),
-                      SizedBox(
-                        height: 220,
+                      
+                      // LISTA EXPANDIDA PARA OCUPAR TODO EL ALTO DISPONIBLE DE LA PANTALLA
+                      Expanded(
                         child: FutureBuilder<List<Map<String, dynamic>>>(
                           future: DatabaseHelper.instance.database.then((db) {
                             if (semanaFiltro.isEmpty) {
-                              return db.query('pedidos', orderBy: 'id DESC', limit: 30);
+                              return db.query('pedidos', orderBy: 'fecha DESC, id DESC');
                             } else {
                               return db.query('pedidos', 
                                 where: 'numero_pedido LIKE ? OR cliente LIKE ? OR semana LIKE ?', 
                                 whereArgs: ['%$semanaFiltro%', '%$semanaFiltro%', '%$semanaFiltro%'],
-                                orderBy: 'id DESC'
+                                orderBy: 'fecha DESC, id DESC'
                               );
                             }
                           }),
@@ -1760,18 +1793,19 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
                           },
                         ),
                       ),
-                      const SizedBox(height: 20),
+
                       if (pedidoSeleccionado != null) ...[
+                        const SizedBox(height: 12),
                         Card(
                           elevation: 3,
                           child: Padding(
-                            padding: const EdgeInsets.all(16.0),
+                            padding: const EdgeInsets.all(12.0),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text('Gestionando: ${pedidoSeleccionado!['numero_pedido']} (${pedidoSeleccionado!['cliente']})',
-                                  style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo, fontSize: 15)),
-                                const SizedBox(height: 12),
+                                  style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo, fontSize: 14)),
+                                const SizedBox(height: 8),
                                 TextField(
                                   controller: cantidadRealCtrl,
                                   keyboardType: TextInputType.number,
@@ -1779,28 +1813,28 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
                                     labelText: 'Valor / Monto Real Entregado',
                                     border: OutlineInputBorder(),
                                     prefixText: 'L ',
+                                    isDense: true,
                                   ),
                                 ),
-                                const SizedBox(height: 12),
+                                const SizedBox(height: 8),
                                 TextField(
                                   controller: incidenciaCtrl,
-                                  maxLines: 3,
+                                  maxLines: 2,
                                   decoration: const InputDecoration(
                                     labelText: 'Incidencias / Comentarios (Devoluciones, faltantes, etc.)',
                                     border: OutlineInputBorder(),
-                                    hintText: 'Ej. Hubo devolución de unidades o ajuste...',
+                                    isDense: true,
                                   ),
                                 ),
-                                const SizedBox(height: 16),
+                                const SizedBox(height: 10),
                                 SizedBox(
                                   width: double.infinity,
                                   child: ElevatedButton.icon(
                                     style: ElevatedButton.styleFrom(
                                       backgroundColor: Colors.indigo,
                                       foregroundColor: Colors.white,
-                                      padding: const EdgeInsets.symmetric(vertical: 14),
                                     ),
-                                    icon: const Icon(Icons.picture_as_pdf),
+                                    icon: const Icon(Icons.picture_as_pdf, size: 18),
                                     label: const Text('Generar y Descargar PDF con Incidencia'),
                                     onPressed: () async {
                                       await _generarPdfIncidenciaIndividual(
@@ -1872,14 +1906,26 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
             }
             String codigoProd = codigosProdMap[nombreProd] ?? 'S/C';
 
+            // Comentario del producto alineado a la izquierda con sangría respecto al código
             detalleWidgets.add(
               pw.Padding(
                 padding: const pw.EdgeInsets.only(left: 10, bottom: 4),
                 child: pw.Row(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
                   children: [
                     pw.Text('[$codigoProd] ', style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
                     pw.Expanded(
-                      child: pw.Text('$nombreProd (x$cant)${detalleProd.isNotEmpty ? ' [$detalleProd]' : ''}', style: const pw.TextStyle(fontSize: 10)),
+                      child: pw.Column(
+                        crossAxisAlignment: pw.CrossAxisAlignment.start,
+                        children: [
+                          pw.Text('$nombreProd (x$cant)', style: const pw.TextStyle(fontSize: 10)),
+                          if (detalleProd.isNotEmpty)
+                            pw.Padding(
+                              padding: const pw.EdgeInsets.only(left: 4.0, top: 1.0),
+                              child: pw.Text('[$detalleProd]', style: pw.TextStyle(fontSize: 9, fontStyle: pw.FontStyle.italic, color: PdfColors.grey700)),
+                            ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -1953,7 +1999,6 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
       body: ListView(
         padding: const EdgeInsets.all(16.0),
         children: [
-          // Reporte General con botón de compartir/guardar funcional
           Card(
             elevation: 3,
             child: Padding(
@@ -1963,7 +2008,7 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
                 children: [
                   const Text('Reporte General de Ventas', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 6),
-                  const Text('Exporta el listado completo de todos los pedidos registrados.', style: TextStyle(fontSize: 13, color: Colors.grey)),
+                  const Text('Exporta el listado completo ordenado de más reciente a más antigua.', style: TextStyle(fontSize: 13, color: Colors.grey)),
                   const SizedBox(height: 12),
                   SizedBox(
                     width: double.infinity,
@@ -1979,8 +2024,6 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
             ),
           ),
           const SizedBox(height: 15),
-          // Se eliminó la tarjeta de reporte por productos vendidos ya que ahora se gestiona en su propia pestaña
-          // Reporte Gral por Cliente e Incidencias
           Card(
             elevation: 3,
             child: Padding(
@@ -1990,7 +2033,7 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
                 children: [
                   const Text('Reporte Gral por Cliente e Incidencias', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 6),
-                  const Text('Selecciona una semana o pedido para registrar valor entregado y comentarios de incidencias.', style: TextStyle(fontSize: 13, color: Colors.grey)),
+                  const Text('Gestiona entregas, montos reales y registra incidencias por pedido a pantalla completa.', style: TextStyle(fontSize: 13, color: Colors.grey)),
                   const SizedBox(height: 12),
                   SizedBox(
                     width: double.infinity,
