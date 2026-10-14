@@ -676,7 +676,7 @@ class _VistaCrearPedidoState extends State<VistaCrearPedido> {
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        mainState?.clienteEnCurso ?? 'Toca aquí para buscar y seleccionar cliente...',
+                        mainState?.clienteEnCurso ?? 'Seleccionar Cliente',
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: mainState?.clienteEnCurso != null ? FontWeight.bold : FontWeight.normal,
@@ -704,7 +704,7 @@ class _VistaCrearPedidoState extends State<VistaCrearPedido> {
                     SizedBox(width: 10),
                     Expanded(
                       child: Text(
-                        'Toca aquí para buscar y agregar productos...',
+                        'Agregar Producto',
                         style: TextStyle(fontSize: 14, color: Colors.black87, fontWeight: FontWeight.w500),
                       ),
                     ),
