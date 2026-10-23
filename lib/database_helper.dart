@@ -1,15 +1,111 @@
 import 'dart:io';
 import 'dart:typed_data';
+import 'package:sqflite/sqflite.dart';
+import 'package:path/path.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 class DatabaseHelper {
-  // Instancia singleton opcional si la requieres en otros lados, y tu lógica de PDF
   static final DatabaseHelper instance = DatabaseHelper._init();
+  static Database? _database;
 
   DatabaseHelper._init();
+
+  // Getter de la base de datos que tus vistas están buscando
+  Future<Database> get database async {
+    if (_database != null) return _database!;
+    _database = await _initDB('ventas_hob.db');
+    return _database!;
+  }
+
+  Future<Database> _initDB(String filePath) async {
+    final dbPath = await getDatabasesPath();
+    final path = join(dbPath, filePath);
+
+    return await openDatabase(
+      path,
+      version: 1,
+      onCreate: _createDB,
+    );
+  }
+
+  Future _createDB(Database db, int version) async {
+    await db.execute('''
+      CREATE TABLE clientes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        codigo TEXT,
+        nombre TEXT,
+        telefono TEXT
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE productos (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        codigo TEXT,
+        nombre TEXT,
+        precio REAL
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE pedidos (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        numero_pedido TEXT,
+        cliente TEXT,
+        productos_json TEXT,
+        total REAL,
+        fecha TEXT,
+        semana TEXT,
+        gestionado INTEGER,
+        incidencia TEXT,
+        total_real REAL
+      )
+    ''');
+  }
+
+  // Métodos de sincronización desde CSV
+  Future<void> sincronizarClientesDesdeCSV(String csvData) async {
+    final db = await instance.database;
+    List<String> lineas = csvData.split('\n');
+    await db.transaction((txn) async {
+      await txn.delete('clientes');
+      for (var i = 1; i < lineas.length; i++) {
+        var linea = lineas[i].trim();
+        if (linea.isEmpty) continue;
+        var cols = linea.split(',');
+        if (cols.length >= 3) {
+          await txn.insert('clientes', {
+            'codigo': cols[0].trim(),
+            'nombre': cols[1].trim(),
+            'telefono': cols[2].trim(),
+          });
+        }
+      }
+    });
+  }
+
+  Future<void> sincronizarProductosDesdeCSV(String csvData) async {
+    final db = await instance.database;
+    List<String> lineas = csvData.split('\n');
+    await db.transaction((txn) async {
+      await txn.delete('productos');
+      for (var i = 1; i < lineas.length; i++) {
+        var linea = lineas[i].trim();
+        if (linea.isEmpty) continue;
+        var cols = linea.split(',');
+        if (cols.length >= 3) {
+          await txn.insert('productos', {
+            'codigo': cols[0].trim(),
+            'nombre': cols[1].trim(),
+            'precio': double.tryParse(cols[2].trim()) ?? 0.0,
+          });
+        }
+      }
+    });
+  }
 
   /// Genera, procesa y guarda el reporte en la carpeta Descargas de Android
   static Future<String?> generarYGuardarReporteGeneral({
@@ -19,14 +115,12 @@ class DatabaseHelper {
     required String nombreArchivo,
   }) async {
     try {
-      // 1. Ordenar los productos de mayor a menor valor total vendido
       listaProductosVendidos.sort((a, b) {
         double totalA = (a['valorTotal'] ?? 0.0).toDouble();
         double totalB = (b['valorTotal'] ?? 0.0).toDouble();
-        return totalB.compareTo(totalA); // Orden descendente
+        return totalB.compareTo(totalA);
       });
 
-      // 2. Crear el documento PDF
       final pdf = pw.Document();
 
       pdf.addPage(
@@ -35,7 +129,6 @@ class DatabaseHelper {
           margin: const pw.EdgeInsets.all(32),
           build: (pw.Context context) {
             return [
-              // Encabezado del Reporte
               pw.Header(
                 level: 0,
                 child: pw.Row(
@@ -50,8 +143,6 @@ class DatabaseHelper {
                 ),
               ),
               pw.SizedBox(height: 10),
-
-              // Información del Rango de Pedidos
               pw.Container(
                 padding: const pw.EdgeInsets.all(8),
                 decoration: pw.BoxDecoration(
@@ -69,14 +160,10 @@ class DatabaseHelper {
                 ),
               ),
               pw.SizedBox(height: 20),
-
-              // Sección: Productos Vendidos
               pw.Text('Productos Vendidos (Ordenados por Valor Total)',
                   style: pw.TextStyle(
                       fontSize: 14, fontWeight: pw.FontWeight.bold)),
               pw.SizedBox(height: 10),
-
-              // Tabla de Productos
               pw.Table.fromTextArray(
                 context: context,
                 headerDecoration: const pw.BoxDecoration(color: PdfColors.grey300),
@@ -100,17 +187,13 @@ class DatabaseHelper {
         ),
       );
 
-      // 3. Guardar el archivo en bytes
       final Uint8List pdfBytes = await pdf.save();
-
-      // 4. Gestionar permisos y almacenamiento en Android
       var status = await Permission.storage.request();
 
       if (status.isGranted || Platform.isAndroid) {
         Directory? directorio;
 
         if (Platform.isAndroid) {
-          // Apunta directo a la carpeta Descargas pública de Android
           directorio = Directory('/storage/emulated/0/Download');
           if (!await directorio.exists()) {
             directorio = await getExternalStorageDirectory();
@@ -123,7 +206,7 @@ class DatabaseHelper {
         final archivo = File(rutaCompleta);
         await archivo.writeAsBytes(pdfBytes);
 
-        return rutaCompleta; // Retorna la ruta exitosa
+        return rutaCompleta;
       } else {
         throw Exception('Permisos de almacenamiento denegados.');
       }
