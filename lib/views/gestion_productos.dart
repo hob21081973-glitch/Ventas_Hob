@@ -12,7 +12,7 @@ class VistaGestionProductos extends StatefulWidget {
 class _VistaGestionProductosState extends State<VistaGestionProductos> {
   bool sincronizando = false;
 
-  const String urlProductosCSV = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTmtKhEE5ziDtm_BQdAeOy8c-Z6H6_GbyKcPOvtdjfKtXgxYObBUB-PlK0ldsiwrW78aabDzei-R2Cd/pub?gid=1903712481&single=true&output=csv";
+  final String urlProductosCSV = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTmtKhEE5ziDtm_BQdAeOy8c-Z6H6_GbyKcPOvtdjfKtXgxYObBUB-PlK0ldsiwrW78aabDzei-R2Cd/pub?gid=1903712481&single=true&output=csv";
   
   Future<void> _sincronizar() async {
     setState(() => sincronizando = true);
