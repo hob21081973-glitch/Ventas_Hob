@@ -57,13 +57,13 @@ class MenuPrincipalState extends State<MenuPrincipal> {
 
   // Lista de las 7 pestañas oficiales de la aplicación
   final List<Widget> _vistas = [
-    const VistaCrearPedido(),
-    const VistaHistorialPedidos(),
-    const VistaGestionClientes(),
-    const VistaGestionProductos(),
-    const VistaResumenGeneral(),
-    const VistaResumenProductos(),
-    const VistaExportarPdf(),
+    const CrearPedido(),
+    const HistorialPedidos(),
+    const GestionClientes(),
+    const GestionProductos(),
+    const ResumenGeneral(),
+    const ResumenProductos(),
+    const ExportarPdf(),
   ];
 
   void limpiarPedidoEnCurso() {
