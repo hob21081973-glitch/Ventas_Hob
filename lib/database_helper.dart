@@ -1,10 +1,15 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 
-class PdfHelper {
+class DatabaseHelper {
+  // Instancia singleton opcional si la requieres en otros lados, y tu lógica de PDF
+  static final DatabaseHelper instance = DatabaseHelper._init();
+
+  DatabaseHelper._init();
 
   /// Genera, procesa y guarda el reporte en la carpeta Descargas de Android
   static Future<String?> generarYGuardarReporteGeneral({
@@ -48,7 +53,7 @@ class PdfHelper {
 
               // Información del Rango de Pedidos
               pw.Container(
-                padding: const pw.all(8),
+                padding: const pw.EdgeInsets.all(8),
                 decoration: pw.BoxDecoration(
                   border: pw.Border.all(color: PdfColors.grey400),
                   borderRadius: const pw.BorderRadius.all(pw.Radius.circular(4)),
@@ -86,7 +91,7 @@ class PdfHelper {
                   return [
                     producto['nombre'] ?? 'Sin nombre',
                     producto['cantidad'].toString(),
-                    '\$${(producto['valorTotal'] ?? 0.0).toStringAsFixed(2)}',
+                    'L ${(producto['valorTotal'] ?? 0.0).toStringAsFixed(2)}',
                   ];
                 }).toList(),
               ),
