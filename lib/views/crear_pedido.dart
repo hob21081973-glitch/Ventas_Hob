@@ -201,7 +201,7 @@ class _CrearPedidoState extends State<CrearPedido> {
                   value: cliente['nombre'].toString(),
                   child: Text('${cliente['codigo']} - ${cliente['nombre']}'),
                 );
-              }).toList,
+              }).toList(),
               onChanged: (value) {
                 setState(() {
                   clienteSeleccionado = value;
@@ -219,7 +219,7 @@ class _CrearPedidoState extends State<CrearPedido> {
                   value: prod,
                   child: Text('${prod['nombre']} (L ${prod['precio']})'),
                 );
-              }).toList,
+              }).toList(),
               onChanged: (prodSeleccionado) {
                 if (prodSeleccionado != null) {
                   setState(() {
