@@ -418,7 +418,7 @@ class _VistaCrearPedidoState extends State<VistaCrearPedido> {
                 decoration: BoxDecoration(
                   border: Border.all(color: Colors.indigo.shade300, width: 1.5),
                   borderRadius: BorderRadius.circular(8),
-                  color: Colors.indigo.shade50.withValues(alpha: 0.5),
+                  color: Colors.indigo.shade50.withOpacity(0.5)
                 ),
                 child: Row(
                   children: [
