@@ -51,7 +51,7 @@ class MenuPrincipalState extends State<MenuPrincipal> {
   List<Map<String, dynamic>> productosEnCurso = [];
   int? editandoPedidoId;
   String? editandoNumeroPedidoFijo;
-
+  
   void limpiarPedidoEnCurso() {
     setState(() {
       clienteEnCurso = null;
@@ -61,6 +61,17 @@ class MenuPrincipalState extends State<MenuPrincipal> {
     });
   }
 
+// Método para cargar un pedido existente y cambiar a la pestaña de Crear (índice 0)
+  void cargarPedidoParaEditar(Map<String, dynamic> pedido, List<Map<String, dynamic>> productosDecodificados) {
+    setState(() {
+      editandoPedidoId = pedido['id'];
+      editandoNumeroPedidoFijo = pedido['numero_pedido'];
+      clienteEnCurso = pedido['cliente'];
+      productosEnCurso = productosDecodificados;
+      currentIndex = 0; // Cambia automáticamente a la pestaña "Crear"
+    });
+  }
+  
   // Lista con los nombres de clases estandarizados con 'Vista'
   final List<Widget> _vistas = [
     const VistaCrearPedido(),
