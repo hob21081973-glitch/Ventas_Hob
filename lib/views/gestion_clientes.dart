@@ -12,8 +12,7 @@ class VistaGestionClientes extends StatefulWidget {
 class _VistaGestionClientesState extends State<VistaGestionClientes> {
   bool sincronizando = false;
 
-  // URL del CSV de clientes (asegúrate de que esté definida en tu main.dart o configúrala aquí directamente si la requieres)
-  const String urlClientesCSV = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTmtKhEE5ziDtm_BQdAeOy8c-Z6H6_GbyKcPOvtdjfKtXgxYObBUB-PlK0ldsiwrW78aabDzei-R2Cd/pub?gid=0&single=true&output=csv"; 
+  final String urlClientesCSV = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTmtKhEE5ziDtm_BQdAeOy8c-Z6H6_GbyKcPOvtdjfKtXgxYObBUB-PlK0ldsiwrW78aabDzei-R2Cd/pub?gid=0&single=true&output=csv"; 
 
   Future<void> _sincronizar() async {
     setState(() => sincronizando = true);
