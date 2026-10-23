@@ -11,8 +11,8 @@ import 'views/resumen_productos.dart';
 import 'views/exportar_pdf.dart';
 
 // URLs globales para la sincronización por CSV
-const String urlClientesCSV = "TU_ENLACE_DE_CLIENTES_CSV_AQUI";
-const String urlProductosCSV = "TU_ENLACE_DE_PRODUCTOS_CSV_AQUI";
+const String urlClientesCSV = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTmtKhEE5ziDtm_BQdAeOy8c-Z6H6_GbyKcPOvtdjfKtXgxYObBUB-PlK0ldsiwrW78aabDzei-R2Cd/pub?gid=0&single=true&output=csv";
+const String urlProductosCSV = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTmtKhEE5ziDtm_BQdAeOy8c-Z6H6_GbyKcPOvtdjfKtXgxYObBUB-PlK0ldsiwrW78aabDzei-R2Cd/pub?gid=1903712481&single=true&output=csv";
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
