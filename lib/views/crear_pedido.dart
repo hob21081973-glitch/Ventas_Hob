@@ -1,533 +1,280 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
-import 'package:sqflite/sqflite.dart';
-// Asegúrate de que la ruta a tu database_helper y a tu main (donde vive MenuPrincipalState) sea la correcta:
-import '../database_helper.dart'; 
-import '../main.dart'; 
+import '../database_helper.dart';
 
-class VistaCrearPedido extends StatefulWidget {
-  const VistaCrearPedido({super.key});
+class CrearPedido extends StatefulWidget {
+  final Map<String, dynamic>? pedidoAEditar; // Parámetro para saber si estamos editando
+  final Function? onPedidoGuardado; // Callback para actualizar el historial automáticamente
+
+  const CrearPedido({Key? key, this.pedidoAEditar, this.onPedidoGuardado}) : super(key: key);
 
   @override
-  State<VistaCrearPedido> createState() => _VistaCrearPedidoState();
+  State<CrearPedido> createState() => _CrearPedidoState();
 }
 
-class _VistaCrearPedidoState extends State<VistaCrearPedido> {
-  Future<int> _obtenerSiguienteNumeroPedido() async {
+class _CrearPedidoState extends State<CrearPedido> {
+  String? clienteSeleccionado;
+  List<Map<String, dynamic>> productosPedido = [];
+  List<Map<String, dynamic>> clientesDisponibles = [];
+  List<Map<String, dynamic>> productosDisponibles = [];
+  int? pedidoIdEditando;
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarDatosLocales();
+
+    // Si nos pasaron un pedido para editar, cargamos sus datos en pantalla
+    if (widget.pedidoAEditar != null) {
+      pedidoIdEditando = widget.pedidoAEditar!['id'];
+      clienteSeleccionado = widget.pedidoAEditar!['cliente'];
+      
+      try {
+        String productosJson = widget.pedidoAEditar!['productos_json'] ?? '[]';
+        List decoded = jsonDecode(productosJson);
+        productosPedido = decoded.map((e) => Map<String, dynamic>.from(e)).toList();
+      } catch (e) {
+        productosPedido = [];
+      }
+    }
+  }
+
+  Future<void> _cargarDatosLocales() async {
     final db = await DatabaseHelper.instance.database;
-    final resultado = await db.rawQuery('SELECT COUNT(*) as total FROM pedidos');
-    int count = Sqflite.firstIntValue(resultado) ?? 0;
-    return (count % 99) + 1;
+    final clientes = await db.query('clientes');
+    final productos = await db.query('productos');
+
+    setState(() {
+      clientesDisponibles = clientes;
+      productosDisponibles = productos;
+    });
+  }
+
+  // --- DIÁLOGO CON TECLADO NUMÉRICO PARA LA CANTIDAD ---
+  void _mostrarDialogoCantidad(BuildContext context, Map<String, dynamic> producto, int index) {
+    final TextEditingController cantidadController = TextEditingController(
+      text: producto['cantidad'].toString(),
+    );
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Text('${producto['nombre']}'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Ingrese la cantidad deseada:'),
+              const SizedBox(height: 12),
+              TextField(
+                controller: cantidadController,
+                keyboardType: TextInputType.number, // <--- Teclado numérico directo
+                autofocus: true,
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(),
+                  labelText: 'Cantidad',
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            // Botón Eliminar del pedido
+            TextButton.icon(
+              onPressed: () {
+                setState(() {
+                  productosPedido.removeAt(index);
+                });
+                Navigator.of(context).pop();
+              },
+              icon: const Icon(Icons.delete, color: Colors.red),
+              label: const Text('Eliminar', style: TextStyle(color: Colors.red)),
+            ),
+            // Botón Cancelar
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancelar'),
+            ),
+            // Botón Guardar
+            ElevatedButton(
+              onPressed: () {
+                int nuevaCantidad = int.tryParse(cantidadController.text) ?? 1;
+                if (nuevaCantidad > 0) {
+                  setState(() {
+                    producto['cantidad'] = nuevaCantidad;
+                    producto['valorTotal'] = nuevaCantidad * (producto['precio'] ?? 0.0);
+                  });
+                }
+                Navigator.of(context).pop();
+              },
+              child: const Text('Guardar'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  double get totalPedido {
+    return productosPedido.fold(0.0, (sum, item) => sum + (item['valorTotal'] ?? 0.0));
   }
 
   void _guardarPedido() async {
-    final mainState = context.findAncestorStateOfType<MenuPrincipalState>();
-    if (mainState?.clienteEnCurso == null) {
+    if (clienteSeleccionado == null || productosPedido.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Buscar Cliente')),
+        const SnackBar(content: Text('Seleccione un cliente y al menos un producto.')),
       );
       return;
     }
-    if (mainState == null || mainState.productosEnCurso.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Buscar Producto')),
-      );
-      return;
-    }
-
-    String numPedidoStr;
-    if (mainState.editandoNumeroPedidoFijo != null) {
-      numPedidoStr = mainState.editandoNumeroPedidoFijo!;
-    } else {
-      int numSeq = await _obtenerSiguienteNumeroPedido();
-      numPedidoStr = 'Pedido #${numSeq.toString().padLeft(2, '0')}';
-    }
-
-    double total = mainState.productosEnCurso.fold<double>(
-      0.0, 
-      (sum, item) => sum + ((item['precio'] as num).toDouble() * (item['cantidad'] as num).toDouble())
-    );
-
-    String fecha = DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now());
-
-    String productosStr = mainState.productosEnCurso.map((p) {
-      String com = (p['comentario'] != null && p['comentario'].toString().trim().isNotEmpty)
-          ? ' [${p['comentario']}]'
-          : '';
-      return "${p['nombre']}$com (x${p['cantidad']})";
-    }).join('; ');
 
     final db = await DatabaseHelper.instance.database;
-    
-    if (mainState.editandoPedidoId != null) {
-      await db.update('pedidos', {
-        'numero_pedido': numPedidoStr,
-        'cliente': mainState.clienteEnCurso,
-        'productos_json': productosStr,
-        'total': total,
-      }, where: 'id = ?', whereArgs: [mainState.editandoPedidoId]);
+    final productosJson = jsonEncode(productosPedido);
+    final fechaActual = DateTime.now().toIso8601String();
+
+    if (pedidoIdEditando != null) {
+      // Actualizar pedido existente
+      await db.update(
+        'pedidos',
+        {
+          'cliente': clienteSeleccionado,
+          'productos_json': productosJson,
+          'total': totalPedido,
+          'total_real': totalPedido,
+        },
+        where: 'id = ?',
+        whereArgs: [pedidoIdEditando],
+      );
     } else {
+      // Crear nuevo pedido
       await db.insert('pedidos', {
-        'numero_pedido': numPedidoStr,
-        'cliente': mainState.clienteEnCurso,
-        'productos_json': productosStr,
-        'total': total,
-        'fecha': fecha,
-        'semana': 'Sin Asignar',
+        'numero_pedido': 'PED-${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}',
+        'cliente': clienteSeleccionado,
+        'productos_json': productosJson,
+        'total': totalPedido,
+        'fecha': fechaActual,
+        'semana': 'Semana 1',
         'gestionado': 0,
         'incidencia': '',
-        'total_real': total,
+        'total_real': totalPedido,
       });
     }
 
-    mainState.limpiarPedidoEnCurso();
-    setState(() {});
+    // Notificar para actualizar el historial automáticamente
+    if (widget.onPedidoGuardado != null) {
+      widget.onPedidoGuardado!();
+    }
 
-    if(!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('¡$numPedidoStr Guardado con éxito!')),
+      const SnackBar(content: Text('¡Pedido guardado con éxito!')),
     );
-  }
 
-  void _abrirBuscadorClientes() {
-    showDialog(
-      context: context,
-      builder: (context) {
-        String filtro = '';
-        return StatefulBuilder(
-          builder: (context, setStateDialog) {
-            return Dialog.fullscreen(
-              child: Scaffold(
-                appBar: AppBar(
-                  title: const Text('Buscar Cliente'),
-                  backgroundColor: Colors.indigo,
-                  foregroundColor: Colors.white,
-                  leading: IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ),
-                body: Padding(
-                  padding: const EdgeInsets.all(12.0),
-                  child: Column(
-                    children: [
-                      TextField(
-                        autofocus: true,
-                        decoration: const InputDecoration(
-                          labelText: 'Nombre o código del cliente...',
-                          suffixIcon: Icon(Icons.search),
-                          border: OutlineInputBorder(),
-                        ),
-                        onChanged: (val) {
-                          setStateDialog(() {
-                            filtro = val.trim();
-                          });
-                        },
-                      ),
-                      const SizedBox(height: 12),
-                      Expanded(
-                        child: FutureBuilder<List<Map<String, dynamic>>>(
-                          future: DatabaseHelper.instance.database.then((db) {
-                            return db.query('clientes', where: 'nombre LIKE ? OR codigo LIKE ?', whereArgs: ['%$filtro%', '%$filtro%']);
-                          }),
-                          builder: (context, snapshot) {
-                            if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-                            final clientes = snapshot.data!;
-                            if (clientes.isEmpty) {
-                              return const Center(child: Text('No se encontraron clientes', style: TextStyle(color: Colors.grey)));
-                            }
-                            return ListView.builder(
-                              itemCount: clientes.length,
-                              itemBuilder: (context, index) {
-                                final c = clientes[index];
-                                return Card(
-                                  margin: const EdgeInsets.symmetric(vertical: 4),
-                                  child: ListTile(
-                                    title: Text('Cod: ${c['codigo']}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.indigo)),
-                                    subtitle: Text('${c['nombre']}\nTel: ${c['telefono']}', style: const TextStyle(fontSize: 14)),
-                                    isThreeLine: true,
-                                    onTap: () {
-                                      final mainState = this.context.findAncestorStateOfType<MenuPrincipalState>();
-                                      if (mainState != null) {
-                                        mainState.setState(() {
-                                          mainState.clienteEnCurso = c['nombre'];
-                                        });
-                                      }
-                                      Navigator.pop(context);
-                                      setState(() {});
-                                    },
-                                  ),
-                                );
-                              },
-                            );
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  void _abrirBuscadorProductos() {
-    showDialog(
-      context: context,
-      builder: (context) {
-        String filtro = '';
-        return StatefulBuilder(
-          builder: (context, setStateDialog) {
-            return Dialog.fullscreen(
-              child: Scaffold(
-                appBar: AppBar(
-                  title: const Text('Buscar Producto'),
-                  backgroundColor: Colors.indigo,
-                  foregroundColor: Colors.white,
-                  leading: IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                ),
-                body: Padding(
-                  padding: const EdgeInsets.all(12.0),
-                  child: Column(
-                    children: [
-                      TextField(
-                        autofocus: true,
-                        decoration: const InputDecoration(
-                          labelText: 'Nombre o código del producto...',
-                          suffixIcon: Icon(Icons.search),
-                          border: OutlineInputBorder(),
-                        ),
-                        onChanged: (val) {
-                          setStateDialog(() {
-                            filtro = val.trim();
-                          });
-                        },
-                      ),
-                      const SizedBox(height: 12),
-                      Expanded(
-                        child: FutureBuilder<List<Map<String, dynamic>>>(
-                          future: DatabaseHelper.instance.database.then((db) {
-                            return db.query('productos', where: 'nombre LIKE ? OR codigo LIKE ?', whereArgs: ['%$filtro%', '%$filtro%']);
-                          }),
-                          builder: (context, snapshot) {
-                            if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-                            final productos = snapshot.data!;
-                            if (productos.isEmpty) {
-                              return const Center(child: Text('No se encontraron productos', style: TextStyle(color: Colors.grey)));
-                            }
-                            return ListView.builder(
-                              itemCount: productos.length,
-                              itemBuilder: (context, index) {
-                                final p = productos[index];
-                                return Card(
-                                  margin: const EdgeInsets.symmetric(vertical: 4),
-                                  child: ListTile(
-                                    title: Text('Cod: ${p['codigo']}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.indigo)),
-                                    subtitle: Text('${p['nombre']}\nPrecio: L ${p['precio'].toStringAsFixed(2)}', style: const TextStyle(fontSize: 14)),
-                                    isThreeLine: true,
-                                    onTap: () {
-                                      final mainState = this.context.findAncestorStateOfType<MenuPrincipalState>();
-                                      if (mainState != null) {
-                                        mainState.setState(() {
-                                          var existenteIndex = mainState.productosEnCurso.indexWhere(
-                                            (item) => item['nombre'] == p['nombre'],
-                                          );
-                                          if (existenteIndex != -1) {
-                                            mainState.productosEnCurso[existenteIndex]['cantidad']++;
-                                          } else {
-                                            mainState.productosEnCurso.insert(0, {
-                                              'nombre': p['nombre'],
-                                              'precio': p['precio'],
-                                              'cantidad': 1,
-                                              'comentario': '',
-                                            });
-                                          }
-                                        });
-                                      }
-                                      Navigator.pop(context);
-                                      setState(() {});
-                                    },
-                                  ),
-                                );
-                              },
-                            );
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  void _pedirComentario(int index) {
-    final mainState = context.findAncestorStateOfType<MenuPrincipalState>();
-    if (mainState == null) return;
-    TextEditingController comCtrl = TextEditingController(text: mainState.productosEnCurso[index]['comentario'] ?? '');
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Comentario / Detalle'),
-        content: TextField(
-          controller: comCtrl,
-          decoration: const InputDecoration(labelText: 'Detalle'),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
-          ElevatedButton(
-            onPressed: () {
-              setState(() {
-                mainState.productosEnCurso[index]['comentario'] = comCtrl.text.trim();
-              });
-              Navigator.pop(context);
-            },
-            child: const Text('Guardar'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _mostrarDialogoGestionProducto(int index) {
-    final mainState = context.findAncestorStateOfType<MenuPrincipalState>();
-    if (mainState == null) return;
-    showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setStateDialog) {
-          if (index >= mainState.productosEnCurso.length) return const SizedBox.shrink();
-          var item = mainState.productosEnCurso[index];
-          return AlertDialog(
-            title: Text(item['nombre'], style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text('Cantidad actual: ${item['cantidad']}', style: const TextStyle(fontSize: 16)),
-                const SizedBox(height: 15),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
-                      onPressed: () {
-                        mainState.setState(() {
-                          if (item['cantidad'] > 1) {
-                            item['cantidad']--;
-                          } else {
-                            mainState.productosEnCurso.removeAt(index);
-                          }
-                        });
-                        setStateDialog(() {});
-                        setState(() {});
-                        if (index >= mainState.productosEnCurso.length) {
-                          Navigator.pop(context);
-                        }
-                      },
-                      icon: const Icon(Icons.remove, size: 16),
-                      label: const Text('Menos'),
-                    ),
-                    const SizedBox(width: 10),
-                    ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
-                      onPressed: () {
-                        mainState.setState(() {
-                          item['cantidad']++;
-                        });
-                        setStateDialog(() {});
-                        setState(() {});
-                      },
-                      icon: const Icon(Icons.add, size: 16),
-                      label: const Text('Más'),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                TextButton.icon(
-                  style: TextButton.styleFrom(foregroundColor: Colors.red),
-                  onPressed: () {
-                    mainState.setState(() {
-                      mainState.productosEnCurso.removeAt(index);
-                    });
-                    Navigator.pop(context);
-                    setState(() {});
-                  },
-                  icon: const Icon(Icons.delete),
-                  label: const Text('Eliminar del pedido'),
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Cerrar'),
-              ),
-            ],
-          );
-        },
-      ),
-    );
+    // Limpiar formulario o regresar
+    setState(() {
+      clienteSeleccionado = null;
+      productosPedido.clear();
+      pedidoIdEditando = null;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    final mainState = context.findAncestorStateOfType<MenuPrincipalState>();
-    bool estaEditando = mainState?.editandoPedidoId != null;
-    double totalActual = mainState?.productosEnCurso.fold<double>(
-      0.0, 
-      (sum, item) => sum + ((item['precio'] as num).toDouble() * (item['cantidad'] as num).toDouble())
-    ) ?? 0.0;
-
     return Scaffold(
       appBar: AppBar(
-        title: Text(estaEditando ? 'Editando ${mainState?.editandoNumeroPedidoFijo}' : 'Crear Pedido'),
-        backgroundColor: Colors.indigo,
-        foregroundColor: Colors.white,
+        title: Text(pedidoIdEditando != null ? 'Editar Pedido' : 'Crear Pedido'),
         actions: [
           IconButton(
             icon: const Icon(Icons.save),
-            tooltip: 'Guardar Pedido',
-            onPressed: mainState?.clienteEnCurso == null ? null : _guardarPedido,
+            onPressed: _guardarPedido,
           ),
-          if (estaEditando)
-            IconButton(
-              icon: const Icon(Icons.close, color: Colors.amberAccent),
-              tooltip: 'Cancelar Edición',
-              onPressed: () => setState(() => mainState?.limpiarPedidoEnCurso()),
-            ),
         ],
       ),
       body: Padding(
-        padding: const EdgeInsets.all(12.0),
+        padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
-            GestureDetector(
-              onTap: _abrirBuscadorClientes,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.indigo.shade300, width: 1.5),
-                  borderRadius: BorderRadius.circular(8),
-                  color: Colors.indigo.shade50.withOpacity(0.5)
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.search, color: Colors.indigo),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        mainState?.clienteEnCurso ?? 'Seleccionar Cliente',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: mainState?.clienteEnCurso != null ? FontWeight.bold : FontWeight.normal,
-                          color: mainState?.clienteEnCurso != null ? Colors.black87 : Colors.grey.shade700,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+            // Selector de Cliente
+            DropdownButtonFormField<String>(
+              value: clienteSeleccionado,
+              hint: const Text('Seleccionar Cliente'),
+              isExpanded: true,
+              items: clientesDisponibles.map((cliente) {
+                return DropdownMenuItem<String>(
+                  value: cliente['nombre'].toString(),
+                  child: Text('${cliente['codigo']} - ${cliente['nombre']}'),
+                );
+              }).toList,
+              onChanged: (value) {
+                setState(() {
+                  clienteSeleccionado = value;
+                });
+              },
             ),
             const SizedBox(height: 12),
-            GestureDetector(
-              onTap: _abrirBuscadorProductos,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.indigo.shade300, width: 1.5),
-                  borderRadius: BorderRadius.circular(8),
-                  color: Colors.indigo.shade50.withOpacity(0.5),
-                ),
-                child: const Row(
-                  children: [
-                    Icon(Icons.search, color: Colors.indigo),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        'Agregar Producto',
-                        style: TextStyle(fontSize: 14, color: Colors.black87, fontWeight: FontWeight.w500),
-                      ),
+
+            // Selector para agregar productos
+            DropdownButtonFormField<Map<String, dynamic>>(
+              hint: const Text('Agregar Producto'),
+              isExpanded: true,
+              items: productosDisponibles.map((prod) {
+                return DropdownMenuItem<Map<String, dynamic>>(
+                  value: prod,
+                  child: Text('${prod['nombre']} (L ${prod['precio']})'),
+                );
+              }).toList,
+              onChanged: (prodSeleccionado) {
+                if (prodSeleccionado != null) {
+                  setState(() {
+                    // Verificar si ya está agregado
+                    var existente = productosPedido.firstWhere(
+                      (p) => p['codigo'] == prodSeleccionado['codigo'],
+                      orElse: () => {},
+                    );
+
+                    if (existente.isNotEmpty) {
+                      existente['cantidad'] += 1;
+                      existente['valorTotal'] = existente['cantidad'] * (existente['precio'] ?? 0.0);
+                    } else {
+                      productosPedido.add({
+                        'codigo': prodSeleccionado['codigo'],
+                        'nombre': prodSeleccionado['nombre'],
+                        'precio': prodSeleccionado['precio'],
+                        'cantidad': 1,
+                        'unidades': 1,
+                        'valorTotal': prodSeleccionado['precio'],
+                      });
+                    }
+                  });
+                }
+              },
+            ),
+            const SizedBox(height: 20),
+
+            // Lista de productos en el pedido
+            Expanded(
+              child: ListView.builder(
+                itemCount: productosPedido.length,
+                itemBuilder: (context, index) {
+                  final prod = productosPedido[index];
+                  return Card(
+                    child: ListTile(
+                      title: Text(prod['nombre'] ?? ''),
+                      subtitle: Text('Cant: ${prod['cantidad']} x L ${prod['precio']}'),
+                      trailing: Text('L ${prod['valorTotal'].toStringAsFixed(2)}'),
+                      onTap: () => _mostrarDialogoCantidad(context, prod, index),
                     ),
-                    Icon(Icons.add_box, color: Colors.indigo),
-                  ],
-                ),
+                  );
+                },
               ),
             ),
-            const Divider(height: 20),
-            Expanded(
-              child: (mainState?.productosEnCurso.isEmpty ?? true)
-                  ? const Center(
-                      child: Text('No hay productos agregados todavía.', style: TextStyle(color: Colors.grey, fontSize: 13)),
-                    )
-                  : ListView.builder(
-                      itemCount: mainState?.productosEnCurso.length ?? 0,
-                      itemBuilder: (context, idx) {
-                        var item = mainState!.productosEnCurso[idx];
-                        String comText = (item['comentario'] != null && item['comentario'].toString().isNotEmpty)
-                            ? item['comentario']
-                            : '';
-                        return Card(
-                          margin: const EdgeInsets.symmetric(vertical: 4),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 8.0),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: InkWell(
-                                    onTap: () => _pedirComentario(idx),
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(item['nombre'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                                        const SizedBox(height: 2),
-                                        Text('Cant: ${item['cantidad']} x L ${item['precio']}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                                        if (comText.isNotEmpty) ...[
-                                          const SizedBox(height: 2),
-                                          Text('Detalle: $comText', style: const TextStyle(fontSize: 12, color: Colors.indigo, fontStyle: FontStyle.italic)),
-                                        ],
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                                InkWell(
-                                  onTap: () => _mostrarDialogoGestionProducto(idx),
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(4.0),
-                                    child: Text(
-                                      'L ${(item['precio'] * item['cantidad']).toStringAsFixed(2)}', 
-                                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.indigo),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-            ),
+
+            // Total y botón de guardar
             Container(
               padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.indigo.shade50,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.indigo.shade200),
-              ),
+              color: Colors.indigo.shade50.withOpacity(0.5),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('Total del Pedido:', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
-                  Text('L ${totalActual.toStringAsFixed(2)}', style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Colors.indigo)),
+                  const Text('Total del Pedido:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  Text('L ${totalPedido.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                 ],
               ),
             ),
