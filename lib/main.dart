@@ -61,16 +61,31 @@ class MenuPrincipalState extends State<MenuPrincipal> {
     });
   }
 
-// Método para cargar un pedido existente y cambiar a la pestaña de Crear (índice 0)
-  void cargarPedidoParaEditar(Map<String, dynamic> pedido, List<Map<String, dynamic>> productosDecodificados) {
+// Método compatible con los 4 parámetros enviados desde historial_pedidos.dart
+  void cargarPedidoParaEditar(dynamic id, dynamic numeroPedido, dynamic cliente, dynamic productos) {
     setState(() {
-      editandoPedidoId = pedido['id'];
-      editandoNumeroPedidoFijo = pedido['numero_pedido'];
-      clienteEnCurso = pedido['cliente'];
-      productosEnCurso = productosDecodificados;
-      currentIndex = 0; // Cambia automáticamente a la pestaña "Crear"
+      editandoPedidoId = id is int ? id : int.tryParse(id.toString());
+      editandoNumeroPedidoFijo = numeroPedido.toString();
+      clienteEnCurso = cliente.toString(); // Preserva el cliente (con su código si está formateado)
+      
+      if (productos is List) {
+        productosEnCurso = List<Map<String, dynamic>>.from(
+          productos.map((item) {
+            Map<String, dynamic> prodMap = Map<String, dynamic>.from(item);
+            // Asegura que contenga código, nombre, precio y cantidad
+            return {
+              'codigo': prodMap['codigo'] ?? '',
+              'nombre': prodMap['nombre'] ?? '',
+              'precio': (prodMap['precio'] as num?)?.toDouble() ?? 0.0,
+              'cantidad': (prodMap['cantidad'] as num?)?.toInt() ?? 1,
+              'comentario': prodMap['comentario'] ?? '',
+            };
+          }),
+        );
+      }
+      currentIndex = 0; // Redirige automáticamente a la pestaña 'Crear Pedido'
     });
-  }
+  }  
   
   // Lista con los nombres de clases estandarizados con 'Vista'
   final List<Widget> _vistas = [
