@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 import '../database_helper.dart';
 
 class CrearPedido extends StatefulWidget {
-  final Map<String, dynamic>? pedidoAEditar; // Parámetro para saber si estamos editando
-  final Function? onPedidoGuardado; // Callback para actualizar el historial automáticamente
+  final Map<String, dynamic>? pedidoAEditar;
+  final Function? onPedidoGuardado;
 
   const CrearPedido({Key? key, this.pedidoAEditar, this.onPedidoGuardado}) : super(key: key);
 
@@ -19,15 +19,18 @@ class _CrearPedidoState extends State<CrearPedido> {
   List<Map<String, dynamic>> productosDisponibles = [];
   int? pedidoIdEditando;
 
+  final TextEditingController _clienteController = TextEditingController();
+  final TextEditingController _productoController = TextEditingController();
+
   @override
   void initState() {
     super.initState();
     _cargarDatosLocales();
 
-    // Si nos pasaron un pedido para editar, cargamos sus datos en pantalla
     if (widget.pedidoAEditar != null) {
       pedidoIdEditando = widget.pedidoAEditar!['id'];
       clienteSeleccionado = widget.pedidoAEditar!['cliente'];
+      _clienteController.text = clienteSeleccionado ?? '';
       
       try {
         String productosJson = widget.pedidoAEditar!['productos_json'] ?? '[]';
@@ -50,7 +53,6 @@ class _CrearPedidoState extends State<CrearPedido> {
     });
   }
 
-  // --- DIÁLOGO CON TECLADO NUMÉRICO PARA LA CANTIDAD ---
   void _mostrarDialogoCantidad(BuildContext context, Map<String, dynamic> producto, int index) {
     final TextEditingController cantidadController = TextEditingController(
       text: producto['cantidad'].toString(),
@@ -68,7 +70,7 @@ class _CrearPedidoState extends State<CrearPedido> {
               const SizedBox(height: 12),
               TextField(
                 controller: cantidadController,
-                keyboardType: TextInputType.number, // <--- Teclado numérico directo
+                keyboardType: TextInputType.number,
                 autofocus: true,
                 decoration: const InputDecoration(
                   border: OutlineInputBorder(),
@@ -78,7 +80,6 @@ class _CrearPedidoState extends State<CrearPedido> {
             ],
           ),
           actions: [
-            // Botón Eliminar del pedido
             TextButton.icon(
               onPressed: () {
                 setState(() {
@@ -89,12 +90,10 @@ class _CrearPedidoState extends State<CrearPedido> {
               icon: const Icon(Icons.delete, color: Colors.red),
               label: const Text('Eliminar', style: TextStyle(color: Colors.red)),
             ),
-            // Botón Cancelar
             TextButton(
               onPressed: () => Navigator.of(context).pop(),
               child: const Text('Cancelar'),
             ),
-            // Botón Guardar
             ElevatedButton(
               onPressed: () {
                 int nuevaCantidad = int.tryParse(cantidadController.text) ?? 1;
@@ -119,7 +118,7 @@ class _CrearPedidoState extends State<CrearPedido> {
   }
 
   void _guardarPedido() async {
-    if (clienteSeleccionado == null || productosPedido.isEmpty) {
+    if (clienteSeleccionado == null || clienteSeleccionado!.isEmpty || productosPedido.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Seleccione un cliente y al menos un producto.')),
       );
@@ -131,7 +130,6 @@ class _CrearPedidoState extends State<CrearPedido> {
     final fechaActual = DateTime.now().toIso8601String();
 
     if (pedidoIdEditando != null) {
-      // Actualizar pedido existente
       await db.update(
         'pedidos',
         {
@@ -144,7 +142,6 @@ class _CrearPedidoState extends State<CrearPedido> {
         whereArgs: [pedidoIdEditando],
       );
     } else {
-      // Crear nuevo pedido
       await db.insert('pedidos', {
         'numero_pedido': 'PED-${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}',
         'cliente': clienteSeleccionado,
@@ -158,7 +155,6 @@ class _CrearPedidoState extends State<CrearPedido> {
       });
     }
 
-    // Notificar para actualizar el historial automáticamente
     if (widget.onPedidoGuardado != null) {
       widget.onPedidoGuardado!();
     }
@@ -167,9 +163,9 @@ class _CrearPedidoState extends State<CrearPedido> {
       const SnackBar(content: Text('¡Pedido guardado con éxito!')),
     );
 
-    // Limpiar formulario o regresar
     setState(() {
       clienteSeleccionado = null;
+      _clienteController.clear();
       productosPedido.clear();
       pedidoIdEditando = null;
     });
@@ -191,59 +187,91 @@ class _CrearPedidoState extends State<CrearPedido> {
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
-            // Selector de Cliente
-            DropdownButtonFormField<String>(
-              value: clienteSeleccionado,
-              hint: const Text('Seleccionar Cliente'),
-              isExpanded: true,
-              items: clientesDisponibles.map((cliente) {
-                return DropdownMenuItem<String>(
-                  value: cliente['nombre'].toString(),
-                  child: Text('${cliente['codigo']} - ${cliente['nombre']}'),
-                );
-              }).toList(),
-              onChanged: (value) {
-                setState(() {
-                  clienteSeleccionado = value;
+            // Autocomplete para Buscar Cliente
+            Autocomplete<Map<String, dynamic>>(
+              optionsBuilder: (TextEditingValue textEditingValue) {
+                if (textEditingValue.text == '') {
+                  return clientesDisponibles;
+                }
+                return clientesDisponibles.where((cliente) {
+                  final nombre = cliente['nombre'].toString().toLowerCase();
+                  final codigo = cliente['codigo'].toString().toLowerCase();
+                  final query = textEditingValue.text.toLowerCase();
+                  return nombre.contains(query) || codigo.contains(query);
                 });
+              },
+              displayStringForOption: (option) => '${option['codigo']} - ${option['nombre']}',
+              onSelected: (selection) {
+                setState(() {
+                  clienteSeleccionado = selection['nombre'].toString();
+                  _clienteController.text = '${selection['codigo']} - ${selection['nombre']}';
+                });
+              },
+              fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
+                // Sincronizar el texto si ya venía precargado
+                if (controller.text.isEmpty && _clienteController.text.isNotEmpty) {
+                  controller.text = _clienteController.text;
+                }
+                return TextField(
+                  controller: controller,
+                  focusNode: focusNode,
+                  decoration: const InputDecoration(
+                    labelText: 'Buscar Cliente',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.search),
+                  ),
+                );
               },
             ),
             const SizedBox(height: 12),
 
-            // Selector para agregar productos
-            DropdownButtonFormField<Map<String, dynamic>>(
-              hint: const Text('Agregar Producto'),
-              isExpanded: true,
-              items: productosDisponibles.map((prod) {
-                return DropdownMenuItem<Map<String, dynamic>>(
-                  value: prod,
-                  child: Text('${prod['nombre']} (L ${prod['precio']})'),
-                );
-              }).toList(),
-              onChanged: (prodSeleccionado) {
-                if (prodSeleccionado != null) {
-                  setState(() {
-                    // Verificar si ya está agregado
-                    var existente = productosPedido.firstWhere(
-                      (p) => p['codigo'] == prodSeleccionado['codigo'],
-                      orElse: () => {},
-                    );
-
-                    if (existente.isNotEmpty) {
-                      existente['cantidad'] += 1;
-                      existente['valorTotal'] = existente['cantidad'] * (existente['precio'] ?? 0.0);
-                    } else {
-                      productosPedido.add({
-                        'codigo': prodSeleccionado['codigo'],
-                        'nombre': prodSeleccionado['nombre'],
-                        'precio': prodSeleccionado['precio'],
-                        'cantidad': 1,
-                        'unidades': 1,
-                        'valorTotal': prodSeleccionado['precio'],
-                      });
-                    }
-                  });
+            // Autocomplete para Buscar Producto
+            Autocomplete<Map<String, dynamic>>(
+              optionsBuilder: (TextEditingValue textEditingValue) {
+                if (textEditingValue.text == '') {
+                  return const Iterable<Map<String, dynamic>>.empty();
                 }
+                return productosDisponibles.where((prod) {
+                  final nombre = prod['nombre'].toString().toLowerCase();
+                  final query = textEditingValue.text.toLowerCase();
+                  return nombre.contains(query);
+                });
+              },
+              displayStringForOption: (option) => '${option['nombre']} (L ${option['precio']})',
+              onSelected: (prodSeleccionado) {
+                setState(() {
+                  var existente = productosPedido.firstWhere(
+                    (p) => p['codigo'] == prodSeleccionado['codigo'],
+                    orElse: () => {},
+                  );
+
+                  if (existente.isNotEmpty) {
+                    existente['cantidad'] += 1;
+                    existente['valorTotal'] = existente['cantidad'] * (prodSeleccionado['precio'] ?? 0.0);
+                  } else {
+                    productosPedido.add({
+                      'codigo': prodSeleccionado['codigo'],
+                      'nombre': prodSeleccionado['nombre'],
+                      'precio': prodSeleccionado['precio'],
+                      'cantidad': 1,
+                      'unidades': 1,
+                      'valorTotal': prodSeleccionado['precio'],
+                    });
+                  }
+                  _productoController.clear();
+                });
+              },
+              fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
+                return TextField(
+                  controller: controller,
+                  focusNode: focusNode,
+                  decoration: const InputDecoration(
+                    labelText: 'Agregar Producto',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.search),
+                    suffixIcon: Icon(Icons.add),
+                  ),
+                );
               },
             ),
             const SizedBox(height: 20),
@@ -266,7 +294,7 @@ class _CrearPedidoState extends State<CrearPedido> {
               ),
             ),
 
-            // Total y botón de guardar
+            // Total del pedido
             Container(
               padding: const EdgeInsets.all(12),
               color: Colors.indigo.shade50.withOpacity(0.5),
