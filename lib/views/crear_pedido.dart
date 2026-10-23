@@ -19,9 +19,6 @@ class _CrearPedidoState extends State<CrearPedido> {
   List<Map<String, dynamic>> productosDisponibles = [];
   int? pedidoIdEditando;
 
-  final TextEditingController _clienteController = TextEditingController();
-  final TextEditingController _productoController = TextEditingController();
-
   @override
   void initState() {
     super.initState();
@@ -30,7 +27,6 @@ class _CrearPedidoState extends State<CrearPedido> {
     if (widget.pedidoAEditar != null) {
       pedidoIdEditando = widget.pedidoAEditar!['id'];
       clienteSeleccionado = widget.pedidoAEditar!['cliente'];
-      _clienteController.text = clienteSeleccionado ?? '';
       
       try {
         String productosJson = widget.pedidoAEditar!['productos_json'] ?? '[]';
@@ -51,6 +47,166 @@ class _CrearPedidoState extends State<CrearPedido> {
       clientesDisponibles = clientes;
       productosDisponibles = productos;
     });
+  }
+
+  // --- MODAL DE BÚSQUEDA DE CLIENTES ---
+  void _mostrarBuscadorClientes() {
+    TextEditingController searchController = TextEditingController();
+    List<Map<String, dynamic>> listaFiltrada = List.from(clientesDisponibles);
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setStateModal) {
+            return AlertDialog(
+              title: const Text('Seleccionar Cliente'),
+              content: SizedBox(
+                width: double.maxFinite,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: searchController,
+                      autofocus: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Buscar por nombre o código',
+                        prefixIcon: Icon(Icons.search),
+                        border: OutlineInputBorder(),
+                      ),
+                      onChanged: (value) {
+                        setStateModal(() {
+                          listaFiltrada = clientesDisponibles.where((cliente) {
+                            final nombre = cliente['nombre'].toString().toLowerCase();
+                            final codigo = cliente['codigo'].toString().toLowerCase();
+                            final query = value.toLowerCase();
+                            return nombre.contains(query) || codigo.contains(query);
+                          }).toList();
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    Expanded(
+                      child: ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: listaFiltrada.length,
+                        itemBuilder: (context, index) {
+                          final cliente = listaFiltrada[index];
+                          return ListTile(
+                            title: Text('${cliente['codigo']} - ${cliente['nombre']}'),
+                            subtitle: Text(cliente['direccion'] ?? ''),
+                            onTap: () {
+                              setState(() {
+                                clienteSeleccionado = cliente['nombre'].toString();
+                              });
+                              Navigator.of(context).pop();
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Cancelar'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // --- MODAL DE BÚSQUEDA DE PRODUCTOS ---
+  void _mostrarBuscadorProductos() {
+    TextEditingController searchController = TextEditingController();
+    List<Map<String, dynamic>> listaFiltrada = List.from(productosDisponibles);
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setStateModal) {
+            return AlertDialog(
+              title: const Text('Seleccionar Producto'),
+              content: SizedBox(
+                width: double.maxFinite,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: searchController,
+                      autofocus: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Buscar producto',
+                        prefixIcon: Icon(Icons.search),
+                        border: OutlineInputBorder(),
+                      ),
+                      onChanged: (value) {
+                        setStateModal(() {
+                          listaFiltrada = productosDisponibles.where((prod) {
+                            final nombre = prod['nombre'].toString().toLowerCase();
+                            final query = value.toLowerCase();
+                            return nombre.contains(query);
+                          }).toList();
+                        });
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    Expanded(
+                      child: ListView.builder(
+                        shrinkWrap: true,
+                        itemCount: listaFiltrada.length,
+                        itemBuilder: (context, index) {
+                          final prod = listaFiltrada[index];
+                          return ListTile(
+                            title: Text(prod['nombre'] ?? ''),
+                            trailing: Text('L ${prod['precio']}'),
+                            onTap: () {
+                              setState(() {
+                                var existente = productosPedido.firstWhere(
+                                  (p) => p['codigo'] == prod['codigo'],
+                                  orElse: () => {},
+                                );
+
+                                if (existente.isNotEmpty) {
+                                  existente['cantidad'] += 1;
+                                  existente['valorTotal'] = existente['cantidad'] * (prod['precio'] ?? 0.0);
+                                } else {
+                                  productosPedido.add({
+                                    'codigo': prod['codigo'],
+                                    'nombre': prod['nombre'],
+                                    'precio': prod['precio'],
+                                    'cantidad': 1,
+                                    'unidades': 1,
+                                    'valorTotal': prod['precio'],
+                                  });
+                                }
+                              });
+                              Navigator.of(context).pop();
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Cancelar'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
   void _mostrarDialogoCantidad(BuildContext context, Map<String, dynamic> producto, int index) {
@@ -165,7 +321,6 @@ class _CrearPedidoState extends State<CrearPedido> {
 
     setState(() {
       clienteSeleccionado = null;
-      _clienteController.clear();
       productosPedido.clear();
       pedidoIdEditando = null;
     });
@@ -187,92 +342,40 @@ class _CrearPedidoState extends State<CrearPedido> {
         padding: const EdgeInsets.all(16.0),
         child: Column(
           children: [
-            // Autocomplete para Buscar Cliente
-            Autocomplete<Map<String, dynamic>>(
-              optionsBuilder: (TextEditingValue textEditingValue) {
-                if (textEditingValue.text == '') {
-                  return clientesDisponibles;
-                }
-                return clientesDisponibles.where((cliente) {
-                  final nombre = cliente['nombre'].toString().toLowerCase();
-                  final codigo = cliente['codigo'].toString().toLowerCase();
-                  final query = textEditingValue.text.toLowerCase();
-                  return nombre.contains(query) || codigo.contains(query);
-                });
-              },
-              displayStringForOption: (option) => '${option['codigo']} - ${option['nombre']}',
-              onSelected: (selection) {
-                setState(() {
-                  clienteSeleccionado = selection['nombre'].toString();
-                  _clienteController.text = '${selection['codigo']} - ${selection['nombre']}';
-                });
-              },
-              fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
-                // Sincronizar el texto si ya venía precargado
-                if (controller.text.isEmpty && _clienteController.text.isNotEmpty) {
-                  controller.text = _clienteController.text;
-                }
-                return TextField(
-                  controller: controller,
-                  focusNode: focusNode,
-                  decoration: const InputDecoration(
-                    labelText: 'Buscar Cliente',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.search),
+            // Botón / Caja para Seleccionar Cliente
+            InkWell(
+              onTap: _mostrarBuscadorClientes,
+              child: InputDecorator(
+                decoration: const InputDecoration(
+                  labelText: 'Cliente',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.person_search),
+                ),
+                child: Text(
+                  clienteSeleccionado ?? 'Buscar Cliente',
+                  style: TextStyle(
+                    color: clienteSeleccionado == null ? Colors.grey[600] : Colors.black87,
+                    fontSize: 16,
                   ),
-                );
-              },
+                ),
+              ),
             ),
             const SizedBox(height: 12),
 
-            // Autocomplete para Buscar Producto
-            Autocomplete<Map<String, dynamic>>(
-              optionsBuilder: (TextEditingValue textEditingValue) {
-                if (textEditingValue.text == '') {
-                  return const Iterable<Map<String, dynamic>>.empty();
-                }
-                return productosDisponibles.where((prod) {
-                  final nombre = prod['nombre'].toString().toLowerCase();
-                  final query = textEditingValue.text.toLowerCase();
-                  return nombre.contains(query);
-                });
-              },
-              displayStringForOption: (option) => '${option['nombre']} (L ${option['precio']})',
-              onSelected: (prodSeleccionado) {
-                setState(() {
-                  var existente = productosPedido.firstWhere(
-                    (p) => p['codigo'] == prodSeleccionado['codigo'],
-                    orElse: () => {},
-                  );
-
-                  if (existente.isNotEmpty) {
-                    existente['cantidad'] += 1;
-                    existente['valorTotal'] = existente['cantidad'] * (prodSeleccionado['precio'] ?? 0.0);
-                  } else {
-                    productosPedido.add({
-                      'codigo': prodSeleccionado['codigo'],
-                      'nombre': prodSeleccionado['nombre'],
-                      'precio': prodSeleccionado['precio'],
-                      'cantidad': 1,
-                      'unidades': 1,
-                      'valorTotal': prodSeleccionado['precio'],
-                    });
-                  }
-                  _productoController.clear();
-                });
-              },
-              fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
-                return TextField(
-                  controller: controller,
-                  focusNode: focusNode,
-                  decoration: const InputDecoration(
-                    labelText: 'Agregar Producto',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.search),
-                    suffixIcon: Icon(Icons.add),
-                  ),
-                );
-              },
+            // Botón / Caja para Agregar Producto
+            InkWell(
+              onTap: _mostrarBuscadorProductos,
+              child: InputDecorator(
+                decoration: const InputDecoration(
+                  labelText: 'Agregar Producto',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.add_shopping_cart),
+                ),
+                child: Text(
+                  'Tocar para buscar y agregar producto',
+                  style: TextStyle(color: Colors.grey[600], fontSize: 16),
+                ),
+              ),
             ),
             const SizedBox(height: 20),
 
