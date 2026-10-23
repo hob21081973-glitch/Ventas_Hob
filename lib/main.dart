@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'database_helper.dart';
 
-// Importación de las 7 vistas modularizadas
+// Importación de las 7 vistas modularizadas dentro de la carpeta views/
 import 'views/crear_pedido.dart';
 import 'views/historial_pedidos.dart';
 import 'views/gestion_clientes.dart';
@@ -16,7 +16,6 @@ const String urlProductosCSV = "TU_ENLACE_DE_PRODUCTOS_CSV_AQUI";
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // Inicializar base de datos local
   await DatabaseHelper.instance.database;
   runApp(const VentasHobApp());
 }
