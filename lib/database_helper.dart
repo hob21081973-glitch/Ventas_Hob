@@ -13,8 +13,14 @@ class DatabaseHelper {
 
   DatabaseHelper._init();
 
-  // Getter de la base de datos que tus vistas están buscando
-Future<Database> _initDB(String filePath) async {
+  // Getter de la base de datos requerido por las vistas
+  Future<Database> get database async {
+    if (_database != null) return _database!;
+    _database = await _initDB('ventas_hob.db');
+    return _database!;
+  }
+
+  Future<Database> _initDB(String filePath) async {
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, filePath);
 
@@ -22,15 +28,10 @@ Future<Database> _initDB(String filePath) async {
       path,
       version: 1,
       onCreate: _createDB,
-      onUpgrade: _onUpgradeDB,
+      onUpgrade: _onUpgradeDB, // Protege los datos al actualizar el APK
     );
   }
 
-  Future _onUpgradeDB(Database db, int oldVersion, int newVersion) async {
-    if (oldVersion < 2) {
-      // Futuras migraciones de base de datos sin perder datos
-    }
-  }
   Future _createDB(Database db, int version) async {
     await db.execute('''
       CREATE TABLE clientes (
@@ -64,6 +65,13 @@ Future<Database> _initDB(String filePath) async {
         total_real REAL
       )
     ''');
+  }
+
+  // Método de migración seguro para futuras actualizaciones sin perder datos
+  Future _onUpgradeDB(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      // Futuras actualizaciones de columnas o tablas van aquí
+    }
   }
 
   // Métodos de sincronización desde CSV
