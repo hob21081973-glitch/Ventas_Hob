@@ -298,7 +298,7 @@ class _VistaCrearPedidoState extends State<VistaCrearPedido> {
     );
   }
 
-  // --- NUEVO DIÁLOGO CON TECLADO NUMÉRICO DIRECTO (REEMPLAZA BOTONES MÁS/MENOS) ---
+// --- DIÁLOGO PARA MODIFICAR CANTIDAD CON TECLADO NUMÉRICO (COMPACTO Y ALINEADO A LA DERECHA) ---
   void _mostrarDialogoGestionProducto(int index) {
     final mainState = context.findAncestorStateOfType<MenuPrincipalState>();
     if (mainState == null) return;
@@ -314,17 +314,30 @@ class _VistaCrearPedidoState extends State<VistaCrearPedido> {
         title: Text(item['nombre'], style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Ingrese la cantidad deseada:', style: TextStyle(fontSize: 14)),
-            const SizedBox(height: 12),
-            TextField(
-              controller: cantidadController,
-              keyboardType: TextInputType.number, // <--- Teclado numérico directo
-              autofocus: true,
-              decoration: const InputDecoration(
-                border: OutlineInputBorder(),
-                labelText: 'Cantidad',
-              ),
+            const Text('Cantidad deseada:', style: TextStyle(fontSize: 14)),
+            const SizedBox(height: 10),
+            // Fila con el campo de texto pequeño a la derecha
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                SizedBox(
+                  width: 90, // <--- Tamaño compacto reducido
+                  child: TextField(
+                    controller: cantidadController,
+                    keyboardType: TextInputType.number,
+                    autofocus: true,
+                    textAlign: TextAlign.center, // Texto centrado dentro de la cajita
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    decoration: const InputDecoration(
+                      contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      border: OutlineInputBorder(),
+                      isDense: true,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ),
@@ -339,15 +352,15 @@ class _VistaCrearPedidoState extends State<VistaCrearPedido> {
               Navigator.pop(context);
               setState(() {});
             },
-            icon: const Icon(Icons.delete),
-            label: const Text('Eliminar del pedido'),
+            icon: const Icon(Icons.delete, size: 18),
+            label: const Text('Eliminar', style: TextStyle(fontSize: 13)),
           ),
           // Botón Cancelar
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('Cancelar'),
           ),
-          // Botón Guardar cantidad ingresada
+          // Botón Guardar
           ElevatedButton(
             onPressed: () {
               int nuevaCantidad = int.tryParse(cantidadController.text) ?? 1;
