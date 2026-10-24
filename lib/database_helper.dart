@@ -14,13 +14,7 @@ class DatabaseHelper {
   DatabaseHelper._init();
 
   // Getter de la base de datos que tus vistas están buscando
-  Future<Database> get database async {
-    if (_database != null) return _database!;
-    _database = await _initDB('ventas_hob.db');
-    return _database!;
-  }
-
-  Future<Database> _initDB(String filePath) async {
+Future<Database> _initDB(String filePath) async {
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, filePath);
 
@@ -28,9 +22,15 @@ class DatabaseHelper {
       path,
       version: 1,
       onCreate: _createDB,
+      onUpgrade: _onUpgradeDB,
     );
   }
 
+  Future _onUpgradeDB(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      // Futuras migraciones de base de datos sin perder datos
+    }
+  }
   Future _createDB(Database db, int version) async {
     await db.execute('''
       CREATE TABLE clientes (
