@@ -374,7 +374,7 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('Reporte General de Ventas', style: TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
+                  const Text('Reporte General de Ventas', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 6),
                   const Text('Exporta el listado completo de todos los pedidos registrados.', style: TextStyle(fontSize: 13, color: Colors.grey)),
                   const SizedBox(height: 12),
