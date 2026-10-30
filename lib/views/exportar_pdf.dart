@@ -112,7 +112,7 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
                       // --- LISTA DE PEDIDOS CON EXPANSIÓN FLEXIBLE Y SIN CORTES ---
                       Expanded(
                         flex: 3,
-                        child: FutureBuilder<List>>(
+                        child: FutureBuilder<List> >(
                           future: DatabaseHelper.instance.database.then((db) {
                             if (semanaFiltro.isEmpty) {
                               return db.query('pedidos', orderBy: 'id DESC', limit: 50);
