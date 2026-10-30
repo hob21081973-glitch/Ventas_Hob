@@ -109,10 +109,9 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
                       const Text('2. Selecciona el Pedido a gestionar:', style: TextStyle(fontWeight: FontWeight.bold)),
                       const SizedBox(height: 8),
                       
-                      // --- LISTA DE PEDIDOS CON EXPANSIÓN FLEXIBLE Y SIN CORTES ---
                       Expanded(
                         flex: 3,
-                        child: FutureBuilder<List> >(
+                        child: FutureBuilder<List>>(
                           future: DatabaseHelper.instance.database.then((db) {
                             if (semanaFiltro.isEmpty) {
                               return db.query('pedidos', orderBy: 'id DESC', limit: 50);
@@ -159,7 +158,6 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
                       
                       const SizedBox(height: 10),
 
-                      // --- SECCIÓN DE GESTIÓN INFERIOR (VALOR REAL E INCIDENCIAS) ---
                       if (pedidoSeleccionado != null) ...[
                         Expanded(
                           flex: 4,
