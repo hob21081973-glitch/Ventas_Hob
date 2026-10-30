@@ -125,14 +125,16 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
                           }),
                           builder: (context, snapshot) {
                             if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-                            final pedidos = snapshot.data as List>? ?? [];
+                            
+                            final List pedidos = (snapshot.data ?? []) as List;
+
                             if (pedidos.isEmpty) {
                               return const Center(child: Text('No se encontraron pedidos con ese filtro.'));
                             }
                             return ListView.builder(
                               itemCount: pedidos.length,
                               itemBuilder: (context, index) {
-                                final p = pedidos[index];
+                                final p = pedidos[index] as Map<String, dynamic>;
                                 bool esSeleccionado = pedidoSeleccionado != null && pedidoSeleccionado!['id'] == p['id'];
                                 return Card(
                                   color: esSeleccionado ? Colors.indigo.shade50 : Colors.white,
