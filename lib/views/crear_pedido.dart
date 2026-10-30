@@ -125,7 +125,7 @@ class _VistaCrearPedidoState extends State<VistaCrearPedido> {
                       ),
                       const SizedBox(height: 12),
                       Expanded(
-                        child: FutureBuilder<List<Map<String, dynamic>>>(
+                        child: FutureBuilder<List<Map<String, dynamic> > >(
                           future: DatabaseHelper.instance.database.then((db) {
                             return db.query('clientes', where: 'nombre LIKE ? OR codigo LIKE ?', whereArgs: ['%$filtro%', '%$filtro%']);
                           }),
@@ -210,7 +210,7 @@ class _VistaCrearPedidoState extends State<VistaCrearPedido> {
                       ),
                       const SizedBox(height: 12),
                       Expanded(
-                        child: FutureBuilder<List<Map<String, dynamic>>>(
+                        child: FutureBuilder<List<Map<String, dynamic> > >(
                           future: DatabaseHelper.instance.database.then((db) {
                             return db.query('productos', where: 'nombre LIKE ? OR codigo LIKE ?', whereArgs: ['%$filtro%', '%$filtro%']);
                           }),
