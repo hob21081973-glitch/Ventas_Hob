@@ -111,7 +111,7 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
                       
                       Expanded(
                         flex: 3,
-                        child: FutureBuilder<List>>(
+                        child: FutureBuilder(
                           future: DatabaseHelper.instance.database.then((db) {
                             if (semanaFiltro.isEmpty) {
                               return db.query('pedidos', orderBy: 'id DESC', limit: 50);
@@ -123,7 +123,7 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
                               );
                             }
                           }),
-                          builder: (context, snapshot) {
+                          builder: (context, AsyncSnapshot<List>> snapshot) {
                             if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
                             final pedidos = snapshot.data!;
                             if (pedidos.isEmpty) {
