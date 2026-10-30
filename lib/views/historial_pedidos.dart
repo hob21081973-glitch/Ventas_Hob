@@ -17,13 +17,42 @@ class VistaHistorialPedidos extends StatefulWidget {
 class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
   Set<int> pedidosSeleccionadosIds = {};
 
+  // --- 1. DIÁLOGO DE CONFIRMACIÓN (SÍ / NO) PARA RESETEAR PEDIDOS ---
+  void _confirmarResetearConteo() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirmar Reseteo'),
+        content: const Text(
+          '¿Estás seguro de que deseas eliminar TODOS los pedidos del historial? Esta acción no se puede deshacer.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context), // NO
+            child: const Text('NO', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            onPressed: () async {
+              Navigator.pop(context);
+              await _resetearConteo();
+            },
+            child: const Text('SÍ'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _resetearConteo() async {
     final db = await DatabaseHelper.instance.database;
     await db.delete('pedidos');
     pedidosSeleccionadosIds.clear();
     setState(() {});
-    if(!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Conteo de pedidos reseteado a 0')));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Historial de pedidos reseteado con éxito')),
+    );
   }
 
   void _enviarWhatsApp(String cliente, String productos, double total) async {
@@ -151,6 +180,7 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
     }
   }
 
+  // --- 2. ASIGNACIÓN MÚLTIPLE DE SEMANA PARA GESTIÓN DE ENTREGAS ---
   void _mostrarAsignarSemanaDialog() {
     if (pedidosSeleccionadosIds.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Seleccione al menos un pedido')));
@@ -177,9 +207,11 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
                 }
                 pedidosSeleccionadosIds.clear();
                 setState(() {});
-                if(!mounted) return;
+                if (!mounted) return;
                 Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Pedidos asignados a $sem')));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Pedidos asignados a $sem correctamente')),
+                );
               }
             },
             child: const Text('Guardar'),
@@ -228,7 +260,7 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
   }
 
   void _mandarAEditar(Map<String, dynamic> pedido) async {
-    List<Map<String, dynamic>> productosParsed = [];
+    List> productosParsed = [];
     String prodString = pedido['productos_json'].toString();
     
     List<String> items = prodString.split(';');
@@ -295,11 +327,11 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: 'Resetear Conteo',
-            onPressed: _resetearConteo,
+            onPressed: _confirmarResetearConteo, // <--- Con ventana de confirmación Sí/No
           )
         ],
       ),
-      body: FutureBuilder<Map<String, List<Map<String, dynamic>>>>(
+      body: FutureBuilder>>>(
         future: DatabaseHelper.instance.database.then((db) async {
           final pedidos = await db.query('pedidos', orderBy: 'id DESC');
           final clientes = await db.query('clientes');
@@ -314,9 +346,9 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
           if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
           
           final data = snapshot.data!;
-          final List<Map<String, dynamic>> pedidos = data['pedidos'] ?? [];
-          final List<Map<String, dynamic>> clientes = data['clientes'] ?? [];
-          final List<Map<String, dynamic>> productos = data['productos'] ?? [];
+          final List> pedidos = data['pedidos'] ?? [];
+          final List> clientes = data['clientes'] ?? [];
+          final List> productos = data['productos'] ?? [];
 
           Map<String, String> codigosClientMap = {};
           for (var c in clientes) {
