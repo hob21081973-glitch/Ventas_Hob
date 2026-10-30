@@ -123,9 +123,9 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
                               );
                             }
                           }),
-                          builder: (context, AsyncSnapshot<List>> snapshot) {
+                          builder: (context, snapshot) {
                             if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-                            final pedidos = snapshot.data!;
+                            final pedidos = snapshot.data as List>? ?? [];
                             if (pedidos.isEmpty) {
                               return const Center(child: Text('No se encontraron pedidos con ese filtro.'));
                             }
