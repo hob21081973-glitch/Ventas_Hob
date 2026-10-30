@@ -17,7 +17,6 @@ class VistaHistorialPedidos extends StatefulWidget {
 class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
   Set<int> pedidosSeleccionadosIds = {};
 
-  // --- 1. DIÁLOGO DE CONFIRMACIÓN (SÍ / NO) PARA RESETEAR PEDIDOS ---
   void _confirmarResetearConteo() {
     showDialog(
       context: context,
@@ -28,7 +27,7 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context), // NO
+            onPressed: () => Navigator.pop(context),
             child: const Text('NO', style: TextStyle(color: Colors.grey)),
           ),
           ElevatedButton(
@@ -180,7 +179,6 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
     }
   }
 
-  // --- 2. ASIGNACIÓN MÚLTIPLE DE SEMANA PARA GESTIÓN DE ENTREGAS ---
   void _mostrarAsignarSemanaDialog() {
     if (pedidosSeleccionadosIds.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Seleccione al menos un pedido')));
@@ -327,11 +325,11 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: 'Resetear Conteo',
-            onPressed: _confirmarResetearConteo, // <--- Con ventana de confirmación Sí/No
+            onPressed: _confirmarResetearConteo,
           )
         ],
       ),
-      body: FutureBuilder> > >(
+      body: FutureBuilder>>>(
         future: DatabaseHelper.instance.database.then((db) async {
           final pedidos = await db.query('pedidos', orderBy: 'id DESC');
           final clientes = await db.query('clientes');
