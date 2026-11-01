@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package0/url_launcher/url_launcher.dart';
 import '../database_helper.dart';
 import '../main.dart';
 
@@ -17,6 +17,7 @@ class VistaHistorialPedidos extends StatefulWidget {
 class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
   Set<int> pedidosSeleccionadosIds = {};
 
+  // 1. Diálogo de confirmación para reseteo
   Future<void> _resetearConteo() async {
     final confirmar = await showDialog<bool>(
       context: context,
@@ -326,29 +327,26 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
         builder: (context, snapshot) {
           if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
           
-          final Map mapData = (snapshot.data as Map?) ?? {};
-          final List pedidos = (mapData['pedidos'] as List?) ?? [];
-          final List clientes = (mapData['clientes'] as List?) ?? [];
-          final List productos = (mapData['productos'] as List?) ?? [];
+          final Map rawData = snapshot.data as Map;
+          final List> pedidos = List>.from(rawData['pedidos'] ?? []);
+          final List> clientes = List>.from(rawData['clientes'] ?? []);
+          final List> productos = List>.from(rawData['productos'] ?? []);
 
           Map<String, String> codigosClientMap = {};
           for (var c in clientes) {
-            if (c is Map) {
-              codigosClientMap[c['nombre'].toString().trim()] = c['codigo'].toString().trim();
-            }
+            codigosClientMap[c['nombre'].toString().trim()] = c['codigo'].toString().trim();
           }
           Map<String, String> codigosProdMap = {};
           for (var p in productos) {
-            if (p is Map) {
-              codigosProdMap[p['nombre'].toString().trim()] = p['codigo'].toString().trim();
-            }
+            codigosProdMap[p['nombre'].toString().trim()] = p['codigo'].toString().trim();
           }
           if (pedidos.isEmpty) return const Center(child: Text('No hay pedidos registrados.'));
           
-          bool todosSeleccionados = pedidos.isNotEmpty && pedidos.every((p) => p is Map && pedidosSeleccionadosIds.contains(p['id']));
+          bool todosSeleccionados = pedidos.isNotEmpty && pedidos.every((p) => pedidosSeleccionadosIds.contains(p['id']));
 
           return Column(
             children: [
+              // 2. Cabecera con la opción de Seleccionar / Deseleccionar todos
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
                 child: Row(
@@ -366,9 +364,7 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
                           } else {
                             pedidosSeleccionadosIds.clear();
                             for (var p in pedidos) {
-                              if (p is Map && p['id'] != null) {
-                                pedidosSeleccionadosIds.add(p['id'] as int);
-                              }
+                              pedidosSeleccionadosIds.add(p['id'] as int);
                             }
                           }
                         });
@@ -384,7 +380,7 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
                 child: ListView.builder(
                   itemCount: pedidos.length,
                   itemBuilder: (context, index) {
-                    final p = pedidos[index] as Map<String, dynamic>;
+                    final p = pedidos[index];
                     int pId = p['id'] as int;
                     bool seleccionado = pedidosSeleccionadosIds.contains(pId);
                     String prodString = p['productos_json']?.toString() ?? '';
