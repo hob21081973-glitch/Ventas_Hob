@@ -329,17 +329,20 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
           )
         ],
       ),
-      body: body: FutureBuilder(
-        future: DatabaseHelper.instance.database.then((db) async {
-          final pedidos = await db.query('pedidos', orderBy: 'id DESC');
-          final clientes = await db.query('clientes');
-          final productos = await db.query('productos');
-          return {
-            'pedidos': pedidos,
-            'clientes': clientes,
-            'productos': productos,
-          };
-        }),
+      body: FutureBuilder(
+  future: DatabaseHelper.instance.database.then((db) async {
+    final pedidos = await db.query('pedidos', orderBy: 'id DESC');
+    final clientes = await db.query('clientes');
+    final productos = await db.query('productos');
+    return {
+      'pedidos': pedidos,
+      'clientes': clientes,
+      'productos': productos,
+    };
+  }),
+  builder: (context, snapshot) {
+    if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+    // ... tu código continúa aquí
         builder: (context, snapshot) {
           if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
           
