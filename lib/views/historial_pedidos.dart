@@ -22,7 +22,7 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
     await db.delete('pedidos');
     pedidosSeleccionadosIds.clear();
     setState(() {});
-    if (!mounted) return;
+    if(!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Conteo de pedidos reseteado a 0')));
   }
 
@@ -39,16 +39,20 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
     
     final productosDb = await db.query('productos');
     final clientesDb = await db.query('clientes');
+
     Map<String, String> codigosProdMap = {};
     for (var prod in productosDb) {
       codigosProdMap[prod['nombre'].toString().trim()] = prod['codigo'].toString().trim();
     }
+
     Map<String, String> codigosClientMap = {};
     for (var cli in clientesDb) {
       codigosClientMap[cli['nombre'].toString().trim()] = cli['codigo'].toString().trim();
     }
+
     String nombreCliente = pedido['cliente'].toString().trim();
     String codigoCliente = codigosClientMap[nombreCliente] ?? 'S/C';
+
     final pdf = pw.Document();
     pdf.addPage(
       pw.Page(
@@ -77,6 +81,7 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
               detalleProd = texto.substring(startIdx + 1, texto.length - 1).trim();
             }
             String codigoProd = codigosProdMap[nombreProd] ?? 'S/C';
+
             detalleWidgets.add(
               pw.Padding(
                 padding: const pw.EdgeInsets.only(left: 10, bottom: 4),
@@ -102,6 +107,7 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
               ),
             );
           }
+
           return pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
@@ -131,6 +137,7 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
         },
       ),
     );
+
     try {
       Uint8List bytes = await pdf.save();
       String nombreArchivo = "Pedido_${pedido['numero_pedido'].toString().replaceAll('#', '')}_$nombreCliente.pdf";
@@ -170,7 +177,7 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
                 }
                 pedidosSeleccionadosIds.clear();
                 setState(() {});
-                if (!mounted) return;
+                if(!mounted) return;
                 Navigator.pop(context);
                 ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Pedidos asignados a $sem')));
               }
@@ -221,7 +228,7 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
   }
 
   void _mandarAEditar(Map<String, dynamic> pedido) async {
-    List> productosParsed = [];
+    List<Map<String, dynamic>> productosParsed = [];
     String prodString = pedido['productos_json'].toString();
     
     List<String> items = prodString.split(';');
@@ -242,12 +249,14 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
           nombre = texto.substring(0, startIdx).trim();
           comentario = texto.substring(startIdx + 1, texto.length - 1).trim();
         }
+
         final db = await DatabaseHelper.instance.database;
         var prodDb = await db.query('productos', where: 'nombre = ?', whereArgs: [nombre], limit: 1);
         double precio = 0.0;
         if (prodDb.isNotEmpty) {
           precio = (prodDb.first['precio'] as num).toDouble();
         }
+
         productosParsed.add({
           'nombre': nombre,
           'precio': precio,
@@ -256,6 +265,7 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
         });
       } catch (_) {}
     }
+
     final mainState = context.findAncestorStateOfType<MenuPrincipalState>();
     if (mainState != null) {
       mainState.cargarPedidoParaEditar(
@@ -289,7 +299,7 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
           )
         ],
       ),
-      body: FutureBuilder(
+      body: FutureBuilder<Map<String, List<Map<String, dynamic>>>>(
         future: DatabaseHelper.instance.database.then((db) async {
           final pedidos = await db.query('pedidos', orderBy: 'id DESC');
           final clientes = await db.query('clientes');
@@ -301,33 +311,29 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
           };
         }),
         builder: (context, snapshot) {
-          if (!snapshot.hasData) {
-            return const Center(child: CircularProgressIndicator());
-          }
+          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
           
-          final data = snapshot.data as Map<String, dynamic>;
-          final List> pedidosList = (data['pedidos'] as List?)?.cast>() ?? [];
-          final List> clientes = (data['clientes'] as List?)?.cast>() ?? [];
-          final List> productos = (data['productos'] as List?)?.cast>() ?? [];
+          final data = snapshot.data!;
+          final List<Map<String, dynamic>> pedidos = data['pedidos'] ?? [];
+          final List<Map<String, dynamic>> clientes = data['clientes'] ?? [];
+          final List<Map<String, dynamic>> productos = data['productos'] ?? [];
 
           Map<String, String> codigosClientMap = {};
           for (var c in clientes) {
             codigosClientMap[c['nombre'].toString().trim()] = c['codigo'].toString().trim();
           }
+
           Map<String, String> codigosProdMap = {};
           for (var p in productos) {
             codigosProdMap[p['nombre'].toString().trim()] = p['codigo'].toString().trim();
           }
 
-          if (pedidosList.isEmpty) {
-            return const Center(child: Text('No hay pedidos registrados.'));
-          }
+          if (pedidos.isEmpty) return const Center(child: Text('No hay pedidos registrados.'));
           
           return ListView.builder(
-            itemCount: pedidosList.length,
+            itemCount: pedidos.length,
             itemBuilder: (context, index) {
-              // Declaración correcta y apuntando a pedidosList
-              final p = pedidosList[index];
+              final p = pedidos[index];
               int pId = p['id'] as int;
               bool seleccionado = pedidosSeleccionadosIds.contains(pId);
               String prodString = p['productos_json']?.toString() ?? '';
@@ -396,6 +402,7 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
                           detalleProd = texto.substring(startIdx + 1, texto.length - 1).trim();
                         }
                         String codigoProd = codigosProdMap[nombreProd] ?? 'S/C';
+
                         return Padding(
                           padding: const EdgeInsets.only(bottom: 6.0, left: 8.0),
                           child: Column(
@@ -450,3 +457,4 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
     );
   }
 }
+
