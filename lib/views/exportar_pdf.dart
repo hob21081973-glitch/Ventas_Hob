@@ -88,8 +88,7 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
                 ),
                 body: Padding(
                   padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  child: ListView(
                     children: [
                       const Text('1. Buscar por Semana o Cliente (opcional):', style: TextStyle(fontWeight: FontWeight.bold)),
                       const SizedBox(height: 8),
@@ -105,13 +104,12 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
                           });
                         },
                       ),
-                      const SizedBox(height: 14),
+                      const SizedBox(height: 20),
                       const Text('2. Selecciona el Pedido a gestionar:', style: TextStyle(fontWeight: FontWeight.bold)),
                       const SizedBox(height: 8),
-                      
-                      Expanded(
-                        flex: 3,
-                        child: FutureBuilder(
+                      SizedBox(
+                        height: 220,
+                        child: FutureBuilder<List<Map<String, dynamic>>>(
                           future: DatabaseHelper.instance.database.then((db) {
                             if (semanaFiltro.isEmpty) {
                               return db.query('pedidos', orderBy: 'id DESC', limit: 30);
@@ -125,16 +123,14 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
                           }),
                           builder: (context, snapshot) {
                             if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-                            
-                            final List pedidos = (snapshot.data ?? []) as List;
-
+                            final pedidos = snapshot.data!;
                             if (pedidos.isEmpty) {
                               return const Center(child: Text('No se encontraron pedidos con ese filtro.'));
                             }
                             return ListView.builder(
                               itemCount: pedidos.length,
                               itemBuilder: (context, index) {
-                                final p = pedidos[index] as Map<String, dynamic>;
+                                final p = pedidos[index];
                                 bool esSeleccionado = pedidoSeleccionado != null && pedidoSeleccionado!['id'] == p['id'];
                                 return Card(
                                   color: esSeleccionado ? Colors.indigo.shade50 : Colors.white,
@@ -157,66 +153,58 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
                           },
                         ),
                       ),
-
-                      const SizedBox(height: 10),
-
+                      const SizedBox(height: 20),
                       if (pedidoSeleccionado != null) ...[
-                        Expanded(
-                          flex: 4,
-                          child: SingleChildScrollView(
-                            child: Card(
-                              elevation: 3,
-                              margin: EdgeInsets.zero,
-                              child: Padding(
-                                padding: const EdgeInsets.all(16.0),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text('Gestionando: ${pedidoSeleccionado!['numero_pedido']} (${pedidoSeleccionado!['cliente']})',
-                                      style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo, fontSize: 15)),
-                                    const SizedBox(height: 12),
-                                    TextField(
-                                      controller: cantidadRealCtrl,
-                                      keyboardType: TextInputType.number,
-                                      decoration: const InputDecoration(
-                                        labelText: 'Valor / Monto Real Entregado',
-                                        border: OutlineInputBorder(),
-                                        prefixText: 'L ',
-                                      ),
-                                    ),
-                                    const SizedBox(height: 12),
-                                    TextField(
-                                      controller: incidenciaCtrl,
-                                      maxLines: 2,
-                                      decoration: const InputDecoration(
-                                        labelText: 'Incidencias / Comentarios (Devoluciones, faltantes, etc.)',
-                                        border: OutlineInputBorder(),
-                                        hintText: 'Ej. Hubo devolución de unidades o ajuste...',
-                                      ),
-                                    ),
-                                    const SizedBox(height: 16),
-                                    SizedBox(
-                                      width: double.infinity,
-                                      child: ElevatedButton.icon(
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: Colors.indigo,
-                                          foregroundColor: Colors.white,
-                                          padding: const EdgeInsets.symmetric(vertical: 14),
-                                        ),
-                                        icon: const Icon(Icons.picture_as_pdf),
-                                        label: const Text('Generar y Descargar PDF con Incidencia'),
-                                        onPressed: () async {
-                                          await _generarPdfIncidenciaIndividual(
-                                            pedidoSeleccionado!,
-                                            cantidadRealCtrl.text,
-                                            incidenciaCtrl.text,
-                                          );
-                                        },
-                                      ),
-                                    ),
-                                  ],
+                        Card(
+                          elevation: 3,
+                          child: Padding(
+                            padding: const EdgeInsets.all(16.0),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('Gestionando: ${pedidoSeleccionado!['numero_pedido']} (${pedidoSeleccionado!['cliente']})',
+                                  style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo, fontSize: 15)),
+                                const SizedBox(height: 12),
+                                TextField(
+                                  controller: cantidadRealCtrl,
+                                  keyboardType: TextInputType.number,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Valor / Monto Real Entregado',
+                                    border: OutlineInputBorder(),
+                                    prefixText: 'L ',
+                                  ),
                                 ),
-                              ),
+                                const SizedBox(height: 12),
+                                TextField(
+                                  controller: incidenciaCtrl,
+                                  maxLines: 3,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Incidencias / Comentarios (Devoluciones, faltantes, etc.)',
+                                    border: OutlineInputBorder(),
+                                    hintText: 'Ej. Hubo devolución de unidades o ajuste...',
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: ElevatedButton.icon(
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.indigo,
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(vertical: 14),
+                                    ),
+                                    icon: const Icon(Icons.picture_as_pdf),
+                                    label: const Text('Generar y Descargar PDF con Incidencia'),
+                                    onPressed: () async {
+                                      await _generarPdfIncidenciaIndividual(
+                                        pedidoSeleccionado!,
+                                        cantidadRealCtrl.text,
+                                        incidenciaCtrl.text,
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ),
@@ -423,3 +411,4 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
     );
   }
 }
+
