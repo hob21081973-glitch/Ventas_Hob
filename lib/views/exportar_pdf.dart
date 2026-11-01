@@ -109,12 +109,13 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
                       const Text('2. Selecciona el Pedido a gestionar:', style: TextStyle(fontWeight: FontWeight.bold)),
                       const SizedBox(height: 8),
                       
+                      // Usamos Expanded para que la lista ocupe el espacio flexible de manera fluida sin desbordarse
                       Expanded(
                         flex: 3,
-                        child: FutureBuilder(
+                        child: FutureBuilder<List>>(
                           future: DatabaseHelper.instance.database.then((db) {
                             if (semanaFiltro.isEmpty) {
-                              return db.query('pedidos', orderBy: 'id DESC', limit: 50);
+                              return db.query('pedidos', orderBy: 'id DESC', limit: 30);
                             } else {
                               return db.query('pedidos', 
                                 where: 'numero_pedido LIKE ? OR cliente LIKE ? OR semana LIKE ?', 
@@ -125,16 +126,14 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
                           }),
                           builder: (context, snapshot) {
                             if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-                            
-                            final List pedidos = (snapshot.data ?? []) as List;
-
+                            final List> pedidos = snapshot.data!;
                             if (pedidos.isEmpty) {
                               return const Center(child: Text('No se encontraron pedidos con ese filtro.'));
                             }
                             return ListView.builder(
                               itemCount: pedidos.length,
                               itemBuilder: (context, index) {
-                                final p = pedidos[index] as Map<String, dynamic>;
+                                final p = pedidos[index];
                                 bool esSeleccionado = pedidoSeleccionado != null && pedidoSeleccionado!['id'] == p['id'];
                                 return Card(
                                   color: esSeleccionado ? Colors.indigo.shade50 : Colors.white,
@@ -157,7 +156,7 @@ class _VistaExportarPdfState extends State<VistaExportarPdf> {
                           },
                         ),
                       ),
-                      
+
                       const SizedBox(height: 10),
 
                       if (pedidoSeleccionado != null) ...[
