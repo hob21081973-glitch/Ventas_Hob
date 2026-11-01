@@ -329,7 +329,7 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
           )
         ],
       ),
-      body: FutureBuilder>>>(
+      body: body: FutureBuilder(
         future: DatabaseHelper.instance.database.then((db) async {
           final pedidos = await db.query('pedidos', orderBy: 'id DESC');
           final clientes = await db.query('clientes');
