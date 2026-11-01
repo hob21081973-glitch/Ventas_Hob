@@ -289,7 +289,6 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
           )
         ],
       ),
-      // FutureBuilder sin tipos angulares explícitos para evitar fallos del analizador
       body: FutureBuilder(
         future: DatabaseHelper.instance.database.then((db) async {
           final pedidos = await db.query('pedidos', orderBy: 'id DESC');
@@ -307,7 +306,7 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
           }
           
           final data = snapshot.data as Map<String, dynamic>;
-          final List> pedidos = (data['pedidos'] as List?)?.cast>() ?? [];
+          final List> pedidosList = (data['pedidos'] as List?)?.cast>() ?? [];
           final List> clientes = (data['clientes'] as List?)?.cast>() ?? [];
           final List> productos = (data['productos'] as List?)?.cast>() ?? [];
 
@@ -320,14 +319,14 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
             codigosProdMap[p['nombre'].toString().trim()] = p['codigo'].toString().trim();
           }
 
-          if (pedidos.isEmpty) {
+          if (pedidosList.isEmpty) {
             return const Center(child: Text('No hay pedidos registrados.'));
           }
           
           return ListView.builder(
-            itemCount: pedidos.length,
+            itemCount: pedidosList.length,
             itemBuilder: (context, index) {
-              final p = pedidos[index];
+              final p = pedidosList[index];
               int pId = p['id'] as int;
               bool seleccionado = pedidosSeleccionadosIds.contains(pId);
               String prodString = p['productos_json']?.toString() ?? '';
