@@ -17,12 +17,34 @@ class VistaHistorialPedidos extends StatefulWidget {
 class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
   Set<int> pedidosSeleccionadosIds = {};
 
+  // 1. Reseteo protegido con Diálogo de Confirmación (Sí / No)
   Future<void> _resetearConteo() async {
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirmar reseteo'),
+        content: const Text('¿Estás seguro de que deseas eliminar y resetear todo el historial de pedidos?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('No'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Sí, eliminar'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmar != true) return;
+
     final db = await DatabaseHelper.instance.database;
     await db.delete('pedidos');
     pedidosSeleccionadosIds.clear();
     setState(() {});
-    if(!mounted) return;
+    if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Conteo de pedidos reseteado a 0')));
   }
 
@@ -228,7 +250,7 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
   }
 
   void _mandarAEditar(Map<String, dynamic> pedido) async {
-    List<Map<String, dynamic>> productosParsed = [];
+    List> productosParsed = [];
     String prodString = pedido['productos_json'].toString();
     
     List<String> items = prodString.split(';');
@@ -299,7 +321,7 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
           )
         ],
       ),
-      body: FutureBuilder<Map<String, List<Map<String, dynamic>>>>(
+      body: FutureBuilder>>>(
         future: DatabaseHelper.instance.database.then((db) async {
           final pedidos = await db.query('pedidos', orderBy: 'id DESC');
           final clientes = await db.query('clientes');
@@ -314,9 +336,9 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
           if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
           
           final data = snapshot.data!;
-          final List<Map<String, dynamic>> pedidos = data['pedidos'] ?? [];
-          final List<Map<String, dynamic>> clientes = data['clientes'] ?? [];
-          final List<Map<String, dynamic>> productos = data['productos'] ?? [];
+          final List> pedidos = data['pedidos'] ?? [];
+          final List> clientes = data['clientes'] ?? [];
+          final List> productos = data['productos'] ?? [];
 
           Map<String, String> codigosClientMap = {};
           for (var c in clientes) {
@@ -330,131 +352,169 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
 
           if (pedidos.isEmpty) return const Center(child: Text('No hay pedidos registrados.'));
           
-          return ListView.builder(
-            itemCount: pedidos.length,
-            itemBuilder: (context, index) {
-              final p = pedidos[index];
-              int pId = p['id'] as int;
-              bool seleccionado = pedidosSeleccionadosIds.contains(pId);
-              String prodString = p['productos_json']?.toString() ?? '';
-              List<String> itemsList = prodString.split(';');
-              String semanaActual = p['semana']?.toString() ?? 'Sin Asignar';
-              
-              String nombreCliente = p['cliente'].toString().trim();
-              String codigoCliente = codigosClientMap[nombreCliente] ?? 'S/C';
+          // 2. Comprobación para el botón de Seleccionar / Deseleccionar todos
+          bool todosSeleccionados = pedidos.isNotEmpty && pedidos.every((p) => pedidosSeleccionadosIds.contains(p['id']));
 
-              return Card(
-                color: seleccionado ? Colors.indigo.shade50 : Colors.white,
-                margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                child: Padding(
-                  padding: const EdgeInsets.all(12.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Checkbox(
-                            value: seleccionado,
-                            onChanged: (val) {
-                              setState(() {
-                                if (val == true) {
-                                  pedidosSeleccionadosIds.add(pId);
-                                } else {
-                                  pedidosSeleccionadosIds.remove(pId);
-                                }
-                              });
-                            },
-                          ),
-                          Expanded(
-                            child: Text(
-                              '${p['numero_pedido']} - [$codigoCliente] $nombreCliente [$semanaActual]', 
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.indigo),
-                            ),
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.share, color: Colors.green, size: 20),
-                            onPressed: () => _enviarWhatsApp(nombreCliente, prodString, (p['total'] as num).toDouble()),
-                            constraints: const BoxConstraints(),
-                            padding: EdgeInsets.zero,
-                          ),
-                        ],
-                      ),
-                      const Divider(height: 12),
-                      const Text('Productos:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.grey)),
-                      const SizedBox(height: 4),
-                      ...itemsList.map((itemStr) {
-                        if (itemStr.trim().isEmpty) return const SizedBox.shrink();
-                        String texto = itemStr.trim();
-                        int cant = 1;
-                        if (texto.contains('(x')) {
-                          var splitCant = texto.split('(x');
-                          texto = splitCant[0].trim();
-                          try {
-                            cant = int.parse(splitCant[1].replaceAll(')', '').trim());
-                          } catch (_) {}
-                        }
-                        String nombreProd = texto;
-                        String detalleProd = '';
-                        if (texto.contains('[') && texto.endsWith(']')) {
-                          int startIdx = texto.lastIndexOf('[');
-                          nombreProd = texto.substring(0, startIdx).trim();
-                          detalleProd = texto.substring(startIdx + 1, texto.length - 1).trim();
-                        }
-                        String codigoProd = codigosProdMap[nombreProd] ?? 'S/C';
+          return Column(
+            children: [
+              // Barra superior con opción de Seleccionar Todos / Deseleccionar Todos
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Total: ${pedidos.length} (Seleccionados: ${pedidosSeleccionadosIds.length})',
+                      style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.grey, fontSize: 12),
+                    ),
+                    TextButton.icon(
+                      onPressed: () {
+                        setState(() {
+                          if (todosSeleccionados) {
+                            pedidosSeleccionadosIds.clear();
+                          } else {
+                            pedidosSeleccionadosIds.clear();
+                            for (var p in pedidos) {
+                              pedidosSeleccionadosIds.add(p['id'] as int);
+                            }
+                          }
+                        });
+                      },
+                      icon: Icon(todosSeleccionados ? Icons.deselect : Icons.select_all, size: 18),
+                      label: Text(todosSeleccionados ? 'Deseleccionar todos' : 'Seleccionar todos'),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              Expanded(
+                child: ListView.builder(
+                  itemCount: pedidos.length,
+                  itemBuilder: (context, index) {
+                    final p = pedidos[index];
+                    int pId = p['id'] as int;
+                    bool seleccionado = pedidosSeleccionadosIds.contains(pId);
+                    String prodString = p['productos_json']?.toString() ?? '';
+                    List<String> itemsList = prodString.split(';');
+                    String semanaActual = p['semana']?.toString() ?? 'Sin Asignar';
+                    
+                    String nombreCliente = p['cliente'].toString().trim();
+                    String codigoCliente = codigosClientMap[nombreCliente] ?? 'S/C';
 
-                        return Padding(
-                          padding: const EdgeInsets.only(bottom: 6.0, left: 8.0),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                '• [$codigoProd] $nombreProd (x$cant)', 
-                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
-                              ),
-                              if (detalleProd.isNotEmpty)
-                                Padding(
-                                  padding: const EdgeInsets.only(left: 16.0, top: 1.0),
+                    return Card(
+                      color: seleccionado ? Colors.indigo.shade50 : Colors.white,
+                      margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      child: Padding(
+                        padding: const EdgeInsets.all(12.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Checkbox(
+                                  value: seleccionado,
+                                  onChanged: (val) {
+                                    setState(() {
+                                      if (val == true) {
+                                        pedidosSeleccionadosIds.add(pId);
+                                      } else {
+                                        pedidosSeleccionadosIds.remove(pId);
+                                      }
+                                    });
+                                  },
+                                ),
+                                Expanded(
                                   child: Text(
-                                    detalleProd, 
-                                    style: const TextStyle(fontStyle: FontStyle.italic, fontSize: 11, color: Colors.grey),
+                                    '${p['numero_pedido']} - [$codigoCliente] $nombreCliente [$semanaActual]', 
+                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.indigo),
                                   ),
                                 ),
-                            ],
-                          ),
-                        );
-                      }),
-                      const Divider(height: 12),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'Total: L ${(p['total'] as num).toStringAsFixed(2)}', 
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.green),
-                          ),
-                          Text(
-                            'Fecha: ${p['fecha']}', 
-                            style: const TextStyle(color: Colors.grey, fontSize: 11),
-                          ),
-                        ],
-                      ),
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: TextButton.icon(
-                          onPressed: () => _mostrarMenuOpciones(p),
-                          icon: const Icon(Icons.more_vert, size: 16),
-                          label: const Text('Opciones', style: TextStyle(fontSize: 12)),
+                                IconButton(
+                                  icon: const Icon(Icons.share, color: Colors.green, size: 20),
+                                  onPressed: () => _enviarWhatsApp(nombreCliente, prodString, (p['total'] as num).toDouble()),
+                                  constraints: const BoxConstraints(),
+                                  padding: EdgeInsets.zero,
+                                ),
+                              ],
+                            ),
+                            const Divider(height: 12),
+                            const Text('Productos:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.grey)),
+                            const SizedBox(height: 4),
+                            ...itemsList.map((itemStr) {
+                              if (itemStr.trim().isEmpty) return const SizedBox.shrink();
+                              String texto = itemStr.trim();
+                              int cant = 1;
+                              if (texto.contains('(x')) {
+                                var splitCant = texto.split('(x');
+                                texto = splitCant[0].trim();
+                                try {
+                                  cant = int.parse(splitCant[1].replaceAll(')', '').trim());
+                                } catch (_) {}
+                              }
+                              String nombreProd = texto;
+                              String detalleProd = '';
+                              if (texto.contains('[') && texto.endsWith(']')) {
+                                int startIdx = texto.lastIndexOf('[');
+                                nombreProd = texto.substring(0, startIdx).trim();
+                                detalleProd = texto.substring(startIdx + 1, texto.length - 1).trim();
+                              }
+                              String codigoProd = codigosProdMap[nombreProd] ?? 'S/C';
+
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 6.0, left: 8.0),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      '• [$codigoProd] $nombreProd (x$cant)', 
+                                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+                                    ),
+                                    if (detalleProd.isNotEmpty)
+                                      Padding(
+                                        padding: const EdgeInsets.only(left: 16.0, top: 1.0),
+                                        child: Text(
+                                          detalleProd, 
+                                          style: const TextStyle(fontStyle: FontStyle.italic, fontSize: 11, color: Colors.grey),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              );
+                            }),
+                            const Divider(height: 12),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'Total: L ${(p['total'] as num).toStringAsFixed(2)}', 
+                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.green),
+                                ),
+                                Text(
+                                  'Fecha: ${p['fecha']}', 
+                                  style: const TextStyle(color: Colors.grey, fontSize: 11),
+                                ),
+                              ],
+                            ),
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: TextButton.icon(
+                                onPressed: () => _mostrarMenuOpciones(p),
+                                icon: const Icon(Icons.more_vert, size: 16),
+                                label: const Text('Opciones', style: TextStyle(fontSize: 12)),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                    ],
-                  ),
+                    );
+                  },
                 ),
-              );
-            },
+              ),
+            ],
           );
         },
       ),
     );
   }
 }
-
