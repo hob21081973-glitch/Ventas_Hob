@@ -326,6 +326,7 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
           return ListView.builder(
             itemCount: pedidosList.length,
             itemBuilder: (context, index) {
+              // Declaración correcta y apuntando a pedidosList
               final p = pedidosList[index];
               int pId = p['id'] as int;
               bool seleccionado = pedidosSeleccionadosIds.contains(pId);
