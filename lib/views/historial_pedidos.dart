@@ -17,7 +17,6 @@ class VistaHistorialPedidos extends StatefulWidget {
 class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
   Set<int> pedidosSeleccionadosIds = {};
 
-  // 1. Método de reseteo protegido con Diálogo de Confirmación (Sí / No)
   Future<void> _resetearConteo() async {
     final confirmar = await showDialog<bool>(
       context: context,
@@ -300,14 +299,12 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
         foregroundColor: Colors.white,
         automaticallyImplyLeading: false,
         actions: [
-          // Botón para Asignar Semana (si hay seleccionados)
           if (pedidosSeleccionadosIds.isNotEmpty)
             IconButton(
               icon: const Icon(Icons.bookmark_add),
               tooltip: 'Asignar Semana',
               onPressed: _mostrarAsignarSemanaDialog,
             ),
-          // Botón de Reseteo (llama al diálogo de confirmación)
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: 'Resetear Conteo',
@@ -315,7 +312,7 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
           )
         ],
       ),
-      body: FutureBuilder>>>(
+      body: FutureBuilder(
         future: DatabaseHelper.instance.database.then((db) async {
           final pedidos = await db.query('pedidos', orderBy: 'id DESC');
           final clientes = await db.query('clientes');
@@ -329,27 +326,29 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
         builder: (context, snapshot) {
           if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
           
-          final data = snapshot.data!;
-          final List> pedidos = data['pedidos'] ?? [];
-          final List> clientes = data['clientes'] ?? [];
-          final List> productos = data['productos'] ?? [];
+          final Map mapData = (snapshot.data as Map?) ?? {};
+          final List pedidos = (mapData['pedidos'] as List?) ?? [];
+          final List clientes = (mapData['clientes'] as List?) ?? [];
+          final List productos = (mapData['productos'] as List?) ?? [];
 
           Map<String, String> codigosClientMap = {};
           for (var c in clientes) {
-            codigosClientMap[c['nombre'].toString().trim()] = c['codigo'].toString().trim();
+            if (c is Map) {
+              codigosClientMap[c['nombre'].toString().trim()] = c['codigo'].toString().trim();
+            }
           }
           Map<String, String> codigosProdMap = {};
           for (var p in productos) {
-            codigosProdMap[p['nombre'].toString().trim()] = p['codigo'].toString().trim();
+            if (p is Map) {
+              codigosProdMap[p['nombre'].toString().trim()] = p['codigo'].toString().trim();
+            }
           }
           if (pedidos.isEmpty) return const Center(child: Text('No hay pedidos registrados.'));
           
-          // Verificamos si todos están seleccionados para el botón de selección global
-          bool todosSeleccionados = pedidos.isNotEmpty && pedidos.every((p) => pedidosSeleccionadosIds.contains(p['id']));
+          bool todosSeleccionados = pedidos.isNotEmpty && pedidos.every((p) => p is Map && pedidosSeleccionadosIds.contains(p['id']));
 
           return Column(
             children: [
-              // 2. Cabecera con opción de Seleccionar / Deseleccionar todos
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
                 child: Row(
@@ -367,7 +366,9 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
                           } else {
                             pedidosSeleccionadosIds.clear();
                             for (var p in pedidos) {
-                              pedidosSeleccionadosIds.add(p['id'] as int);
+                              if (p is Map && p['id'] != null) {
+                                pedidosSeleccionadosIds.add(p['id'] as int);
+                              }
                             }
                           }
                         });
@@ -383,7 +384,7 @@ class _VistaHistorialPedidosState extends State<VistaHistorialPedidos> {
                 child: ListView.builder(
                   itemCount: pedidos.length,
                   itemBuilder: (context, index) {
-                    final p = pedidos[index];
+                    final p = pedidos[index] as Map<String, dynamic>;
                     int pId = p['id'] as int;
                     bool seleccionado = pedidosSeleccionadosIds.contains(pId);
                     String prodString = p['productos_json']?.toString() ?? '';
